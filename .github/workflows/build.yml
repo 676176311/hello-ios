@@ -54,6 +54,19 @@ jobs:
           retention-days: 7
 
       # ━━━━━━━━ AttackLab ━━━━━━━━
+      - name: Compile CSOpsBypass.dylib
+        run: |
+          set -o pipefail
+          SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
+          clang -arch arm64 -isysroot "$SDKROOT" \
+            -miphoneos-version-min=16.0 \
+            -dynamiclib \
+            -o CSOpsBypass/CSOpsBypass.dylib \
+            CSOpsBypass/CSOpsBypass.c \
+            CSOpsBypass/fishhook.c \
+            -install_name /Library/MobileSubstrate/DynamicLibraries/CSOpsBypass.dylib
+          file CSOpsBypass/CSOpsBypass.dylib
+
       - name: Build AttackLab .app
         run: |
           set -o pipefail
@@ -81,6 +94,8 @@ jobs:
         run: |
           mkdir Payload
           cp -R output-attacklab.xcarchive/Products/Applications/AttackLab.app Payload/
+          cp CSOpsBypass/CSOpsBypass.dylib Payload/AttackLab.app/
+          cp CSOpsBypass/CSOpsBypass.plist Payload/AttackLab.app/
           zip -r AttackLab.ipa Payload
           rm -rf Payload
 

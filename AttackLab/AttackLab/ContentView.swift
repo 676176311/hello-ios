@@ -66,7 +66,30 @@ struct ContentView: View {
                         .padding(.horizontal, 16)
                     }.padding(.bottom, 10)
 
-                    // ━━━ CSOPS 结果对比卡 ━━━
+                    // ━━━ 部署状态 ━━━
+                    if hasRun && attackMode && !sim.deployMessage.isEmpty {
+                        VStack(spacing: 6) {
+                            HStack(spacing: 4) {
+                                Image(systemName: sim.tweakDeployed ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundColor(sim.tweakDeployed ? .green : .red)
+                                Text(sim.tweakDeployed ? "Substrate Tweak 已部署" : "部署失败")
+                                    .font(.caption.bold())
+                            }
+                            Text(sim.deployMessage)
+                                .font(.caption2).foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                            if sim.tweakDeployed {
+                                Text("💡 重新打开 HelloApp 即可看到 csops 被绕过")
+                                    .font(.caption2).foregroundColor(.blue)
+                            }
+                        }
+                        .padding(10)
+                        .background(Color(.systemGray6)).cornerRadius(8)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 10)
+                    }
+
+                    // CSOPS 结果对比卡
                     if !sim.results.isEmpty {
                         VStack(spacing: 8) {
                             Text("csops 检测结果")

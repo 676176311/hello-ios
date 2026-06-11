@@ -78,6 +78,86 @@ struct AttackResult: Equatable {
 class AttackSimulator: ObservableObject {
     @Published var results: [AttackResult] = []
     @Published var baseline: BaselineSnapshot?
+    @Published var tweakDeployed: Bool = false
+    @Published var deployMessage: String = ""
+
+    // MobileSubstrate 路径 (兼容 rootful / rootless)
+    private static let substratePaths = [
+        "/var/jb/Library/MobileSubstrate/DynamicLibraries/",  // rootless (Dopamine/palera1n)
+        "/Library/MobileSubstrate/DynamicLibraries/",          // rootful (unc0ver/checkra1n)
+    ]
+
+    private func findWritableSubstrateDir() -> String? {
+        let fm = FileManager.default
+        for dir in Self.substratePaths {
+            if fm.isWritableFile(atPath: dir) {
+                return dir
+            }
+        }
+        return nil
+    }
+
+    /// 部署 csops hook 到 MobileSubstrate
+    func deployTweak() -> Bool {
+        guard let bundlePath = Bundle.main.resourcePath else {
+            deployMessage = "无法获取App资源路径"
+            return false
+        }
+        let dylibSrc = (bundlePath as NSString).appendingPathComponent("CSOpsBypass.dylib")
+        let plistSrc = (bundlePath as NSString).appendingPathComponent("CSOpsBypass.plist")
+
+        if !FileManager.default.fileExists(atPath: dylibSrc) {
+            deployMessage = "dylib未打包 (CSOpsBypass.dylib)"
+            return false
+        }
+
+        guard let destDir = findWritableSubstrateDir() else {
+            deployMessage = "未找到可写入的Substrate目录\n\(Self.substratePaths.joined(separator: "\n"))"
+            return false
+        }
+
+        let fm = FileManager.default
+        do {
+            let dylibDst = destDir + "CSOpsBypass.dylib"
+            let plistDst = destDir + "CSOpsBypass.plist"
+            try? fm.removeItem(atPath: dylibDst)
+            try? fm.removeItem(atPath: plistDst)
+            try fm.copyItem(atPath: dylibSrc, toPath: dylibDst)
+            try fm.copyItem(atPath: plistSrc, toPath: plistDst)
+            deployMessage = "✅ Substrate tweak已部署\n\(destDir)"
+            tweakDeployed = true
+            return true
+        } catch {
+            deployMessage = "复制失败: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// 移除 csops hook
+    func removeTweak() -> Bool {
+        let fm = FileManager.default
+        var removed = false
+        for dir in Self.substratePaths {
+            let dylib = dir + "CSOpsBypass.dylib"
+            let plist = dir + "CSOpsBypass.plist"
+            if fm.fileExists(atPath: dylib) {
+                try? fm.removeItem(atPath: dylib)
+                removed = true
+            }
+            if fm.fileExists(atPath: plist) {
+                try? fm.removeItem(atPath: plist)
+                removed = true
+            }
+        }
+        if removed {
+            deployMessage = "✅ Substrate tweak已移除"
+            tweakDeployed = false
+        } else {
+            deployMessage = "tweak未部署"
+            tweakDeployed = false
+        }
+        return removed
+    }
 
     private func fakeClean(layer: Int, name: String, method: String, how: String, residual: String) -> AttackResult {
         return AttackResult(
@@ -155,10 +235,12 @@ class AttackSimulator: ObservableObject {
 
         results = out
 
-        // 写入系统共享状态 → HelloApp 读取
+        // ━━━ 真正部署/移除 Substrate tweak ━━━
         if attackEnabled {
+            _ = deployTweak()
             SharedAttackState.activate(layers: [1, 2, 3, 4])
         } else {
+            _ = removeTweak()
             SharedAttackState.deactivate()
         }
     }
