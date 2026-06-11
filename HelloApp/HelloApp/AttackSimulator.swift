@@ -66,8 +66,6 @@ class AttackSimulator: ObservableObject {
 
         details.append("libSystem: ret=\(retA) flags=0x\(String(flagsA, radix: 16))")
         details.append("dlsym:    ret=\(retB) flags=0x\(String(flagsB, radix: 16))")
-        details.append("dlsym:    ret=\(retB) flags=0x\(String(flagsB, radix: 16))")
-        details.append("syscall:  ret=\(retC) flags=0x\(String(flagsC, radix: 16))")
 
         if retA != 0 && retB == 0 {
             return SimulationResult(layer: 1, layerName: "用户态Hook",
@@ -169,7 +167,8 @@ class AttackSimulator: ObservableObject {
         ]
         for svc in jailbreakServices {
             var port: mach_port_t = 0
-            let kr = _bsLookUp(_bsPort, (svc as NSString).utf8String, &port)
+            let svcChars = (svc as NSString).utf8String!
+            let kr = _bsLookUp(_bsPort, svcChars, &port)
             if kr == KERN_SUCCESS {
                 exceptionDetected = true
                 details.append("Mach服务存在: \(svc)")
