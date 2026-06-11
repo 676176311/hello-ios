@@ -1,186 +1,202 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var simulator = AttackSimulator()
-    @State private var allEnabled = false
-    @State private var layerEnabled = [false, false, false, false]
-
-    private let layerInfo: [(name: String, emoji: String, desc: String, method: String)] = [
-        ("用户态 Hook", "🎣", "Hook 越狱检测函数 csops(), 让它返回干净标志", "MSHookFunction"),
-        ("内核 Syscall 劫持", "💉", "直接篡改内核系统调用表 sysent[169], 从根源欺骗", "sysent 劫持"),
-        ("加载时清标志", "🧹", "在 mach_loader 加载阶段提前清除可疑标志", "mach_loader 预清"),
-        ("检测链全欺骗", "🪞", "Hook 整个检测链路 (getpid/String/Date/access)", "全链路 Hook"),
-    ]
-
-    private func resultForLayer(_ i: Int) -> AttackResult? {
-        switch i { case 0: simulator.layer1; case 1: simulator.layer2; case 2: simulator.layer3; case 3: simulator.layer4; default: nil }
-    }
+    @StateObject private var sim = AttackSimulator()
+    @State private var attackMode = false
+    @State private var hasRun = false
 
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 0) {
-                    // 标题
-                    VStack(spacing: 6) {
+                    // ━━━ 标题 ━━━
+                    VStack(spacing: 4) {
                         Text("🔬 攻击模拟实验室")
                             .font(.title2.bold())
-                        Text("ON = 攻击生效, 检测被绕过 | OFF = 真实防御检出")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("⚠ 仅供安全学习, 禁止非法使用")
-                            .font(.caption2).foregroundColor(.red.opacity(0.7))
-                    }
-                    .padding(.top, 12).padding(.bottom, 8)
+                        Text("对比攻击绕过 vs 防御检测的 csops 结果")
+                            .font(.caption).foregroundColor(.secondary)
+                    }.padding(.top, 12).padding(.bottom, 10)
 
-                    // 全局开关
-                    HStack {
-                        Text("全部攻击:").font(.subheadline.bold())
-                        Spacer()
-                        Toggle("", isOn: $allEnabled).labelsHidden()
-                            .onChange(of: allEnabled) { v in layerEnabled = layerEnabled.map { _ in v } }
-                    }
-                    .padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(Color(.systemGray6)).cornerRadius(12)
-                    .padding(.horizontal, 12).padding(.bottom, 10)
-
-                    // 4层卡片
-                    ForEach(0..<4, id: \.self) { i in
-                        AttackLayerCard(
-                            index: i,
-                            info: layerInfo[i],
-                            enabled: $layerEnabled[i],
-                            result: resultForLayer(i),
-                            onRun: { runLayer(i) }
-                        )
-                        .padding(.horizontal, 12).padding(.bottom, 8)
-                    }
-
-                    // 底部总结
-                    if simulator.baseline != nil {
-                        let results = [simulator.layer1, simulator.layer2, simulator.layer3, simulator.layer4]
-                        let tested = results.filter { $0 != nil }.count
-                        let bypassed = results.compactMap { $0 }.filter { $0.attackEnabled }.count
-                        VStack(spacing: 6) {
-                            Text("攻击层: \(bypassed)/\(tested) 已启用")
-                                .font(.headline)
-                                .foregroundColor(bypassed > 0 ? .orange : .secondary)
-                            if bypassed > 0 {
-                                Text("🔓 \(bypassed)层攻击生效 — 检测被绕过")
-                                    .font(.caption).foregroundColor(.orange)
+                    // ━━━ 模式切换 ━━━
+                    VStack(spacing: 8) {
+                        Text("选择模式").font(.caption).foregroundColor(.secondary)
+                        HStack(spacing: 12) {
+                            // 防御模式按钮
+                            Button {
+                                attackMode = false
+                                sim.runAll(attackEnabled: false)
+                                hasRun = true
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Text("🛡 防御模式").font(.subheadline.bold())
+                                    Text("真实越狱检测").font(.caption2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(attackMode ? Color(.systemGray5) : Color.green.opacity(0.15))
+                                .foregroundColor(attackMode ? .secondary : .green)
+                                .cornerRadius(10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(attackMode ? Color.clear : Color.green, lineWidth: 1.5)
+                                )
                             }
-                            if tested == 0 {
-                                Text("点击各层「运行测试」开始").font(.caption).foregroundColor(.secondary)
+
+                            // 攻击模式按钮
+                            Button {
+                                attackMode = true
+                                sim.runAll(attackEnabled: true)
+                                hasRun = true
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Text("🔓 攻击模式").font(.subheadline.bold())
+                                    Text("攻击绕过检测").font(.caption2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(attackMode ? Color.orange.opacity(0.15) : Color(.systemGray5))
+                                .foregroundColor(attackMode ? .orange : .secondary)
+                                .cornerRadius(10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(attackMode ? Color.orange : Color.clear, lineWidth: 1.5)
+                                )
                             }
                         }
-                        .padding(.vertical, 14)
+                        .padding(.horizontal, 16)
+                    }.padding(.bottom, 10)
+
+                    // ━━━ CSOPS 结果对比卡 ━━━
+                    if !sim.results.isEmpty {
+                        VStack(spacing: 8) {
+                            Text("csops 检测结果")
+                                .font(.caption).foregroundColor(.secondary)
+
+                            HStack(spacing: 12) {
+                                CsopsCard(
+                                    label: attackMode ? "攻击后" : "真实",
+                                    flags: sim.results[0].csopsShown,
+                                    gta: sim.results[0].gtaShown,
+                                    status: attackMode ? "干净 ✅" : "检出 ⚠️",
+                                    color: attackMode ? .orange : .green
+                                )
+                                Text("→").font(.title2).foregroundColor(.secondary)
+                                CsopsCard(
+                                    label: "结论",
+                                    flags: attackMode ? "0x0" : sim.results[0].csopsShown,
+                                    gta: attackMode ? "OFF ✅" : "ON ⚠️",
+                                    status: attackMode ? "攻击成功 检测绕过" : "检测有效 发现越狱",
+                                    color: attackMode ? .red : .green
+                                )
+                            }
+                            .padding(.horizontal, 16)
+
+                            Text(attackMode
+                                ? "4层攻击全部生效 → csops 检测被彻底绕过"
+                                : "真实系统调用 → csops 如实反映越狱状态")
+                                .font(.caption)
+                                .foregroundColor(attackMode ? .orange : .green)
+                                .padding(.top, 4)
+                        }
+                        .padding(.vertical, 12)
+                        .background(Color(.systemGray6).opacity(0.5))
+                        .cornerRadius(12)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 10)
                     }
+
+                    // ━━━ 4层攻击详情 ━━━
+                    if hasRun {
+                        Text("各层攻击详析")
+                            .font(.caption).foregroundColor(.secondary)
+                            .padding(.bottom, 6)
+
+                        ForEach(Array(sim.results.enumerated()), id: \.element.layer) { _, r in
+                            LayerDetailCard(result: r)
+                                .padding(.horizontal, 12).padding(.bottom, 6)
+                        }
+                    } else {
+                        // 未运行提示
+                        VStack(spacing: 12) {
+                            Image(systemName: "hand.point.up.fill")
+                                .font(.largeTitle).foregroundColor(.secondary)
+                            Text("选择一个模式开始")
+                                .font(.subheadline).foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity).padding(.vertical, 60)
+                    }
+
+                    Spacer(minLength: 20)
                 }
             }
             .navigationBarHidden(true)
-            .onAppear { simulator.baseline = collectBaseline() }
-        }
-    }
-
-    private func runLayer(_ i: Int) {
-        if simulator.baseline == nil { simulator.baseline = collectBaseline() }
-        switch i {
-        case 0: simulator.testLayer1(attackEnabled: layerEnabled[i])
-        case 1: simulator.testLayer2(attackEnabled: layerEnabled[i])
-        case 2: simulator.testLayer3(attackEnabled: layerEnabled[i])
-        case 3: simulator.testLayer4(attackEnabled: layerEnabled[i])
-        default: break
+            .onAppear { sim.baseline = collectBaseline() }
         }
     }
 }
 
-// MARK: - 攻击层卡片
-struct AttackLayerCard: View {
-    let index: Int
-    let info: (name: String, emoji: String, desc: String, method: String)
-    @Binding var enabled: Bool
-    let result: AttackResult?
-    let onRun: () -> Void
+// MARK: - csops 结果小卡片
+struct CsopsCard: View {
+    let label: String
+    let flags: String
+    let gta: String
+    let status: String
+    let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // 头部
+        VStack(spacing: 4) {
+            Text(label).font(.caption2).foregroundColor(.secondary)
+            Text("csops: \(flags)").font(.caption.monospaced().bold())
+            Text("GTA: \(gta)").font(.caption.monospaced())
+            Text(status).font(.caption.bold()).foregroundColor(color)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(color.opacity(0.12)).cornerRadius(4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Color(.systemBackground)).cornerRadius(8)
+    }
+}
+
+// MARK: - 单层详解卡片
+struct LayerDetailCard: View {
+    let result: AttackResult
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("\(info.emoji) Layer \(index+1): \(info.name)")
-                    .font(.subheadline.bold())
+                Text("Layer \(result.layer): \(result.layerName)")
+                    .font(.caption.bold())
                 Spacer()
-                Toggle("", isOn: $enabled).labelsHidden().scaleEffect(0.85)
+                Text(result.attackEnabled ? "🔓 攻击ON" : "🛡 攻击OFF")
+                    .font(.caption2)
+                    .foregroundColor(result.attackEnabled ? .orange : .green)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background((result.attackEnabled ? Color.orange : Color.green).opacity(0.1))
+                    .cornerRadius(4)
             }
 
-            Text(info.desc)
-                .font(.caption).foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // 按钮行
-            HStack {
-                Text("方案: \(info.method)")
-                    .font(.caption2).foregroundColor(.orange)
-                Spacer()
-                Button(action: onRun) {
-                    HStack(spacing: 4) {
-                        if result != nil { Image(systemName: "arrow.clockwise").font(.caption2) }
-                        Text("运行测试").font(.caption.bold())
-                    }
-                    .padding(.horizontal, 14).padding(.vertical, 6)
-                    .background(enabled ? Color.orange : Color.blue.opacity(0.7))
-                    .foregroundColor(.white).cornerRadius(16)
-                }
-            }
-
-            // 结果
-            if let res = result {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Circle().fill(res.attackEnabled ? Color.orange : Color.green).frame(width: 8, height: 8)
-                        Text(res.attackEnabled ? "🔓 攻击模式" : "🛡 防御模式")
-                            .font(.caption.bold())
-                            .foregroundColor(res.attackEnabled ? .orange : .green)
-                        Spacer()
-                        Text(res.attackEnabled ? "绕过成功" : "防御有效")
-                            .font(.caption.bold())
-                            .foregroundColor(res.attackEnabled ? .orange : .green)
-                            .padding(.horizontal, 8).padding(.vertical, 2)
-                            .background((res.attackEnabled ? Color.orange : Color.green).opacity(0.15))
-                            .cornerRadius(4)
-                    }
-
-                    // 真实状态
-                    Text(res.realStatus)
+            if result.attackEnabled {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("手段: \(result.method)")
+                        .font(.caption2).foregroundColor(.orange)
+                    Text("原理: \(result.howItWorks)")
                         .font(.caption2).foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    if res.attackEnabled {
-                        Divider()
-                        Text(res.bypassDescription)
-                            .font(.caption2)
-                            .foregroundColor(.orange)
+                        .lineSpacing(2)
+                    if !result.residualDefense.isEmpty {
+                        Text("🛡 残留: \(result.residualDefense)")
+                            .font(.caption2).foregroundColor(.blue)
                             .fixedSize(horizontal: false, vertical: true)
-                            .lineSpacing(3)
-
-                        if !res.residualDefense.isEmpty {
-                            Text("🛡 残留防御: \(res.residualDefense)")
-                                .font(.caption2)
-                                .foregroundColor(.blue)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, 2)
-                        }
                     }
                 }
-                .padding(10)
-                .background(Color(.systemGray6)).cornerRadius(8)
             } else {
-                Text("点击「运行测试」开始")
-                    .font(.caption).foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 20)
+                Text("未开启攻击 — csops 真实检测")
+                    .font(.caption2).foregroundColor(.secondary)
             }
         }
-        .padding(12)
-        .background(Color(.systemBackground)).cornerRadius(14)
-        .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
+        .padding(10)
+        .background(Color(.systemGray6)).cornerRadius(8)
     }
 }
 
