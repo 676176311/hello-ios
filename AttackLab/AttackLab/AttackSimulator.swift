@@ -80,7 +80,7 @@ class AttackSimulator: ObservableObject {
     @Published var baseline: BaselineSnapshot?
 
     private func fakeClean(layer: Int, name: String, method: String, how: String, residual: String) -> AttackResult {
-        AttackResult(
+        return AttackResult(
             layer: layer, layerName: name, attackEnabled: true,
             csopsShown: "0x0", gtaShown: "OFF ✅",
             detectedShown: false,
@@ -91,7 +91,7 @@ class AttackSimulator: ObservableObject {
     private func realResult(layer: Int, name: String, baseline: BaselineSnapshot) -> AttackResult {
         let flagStr = baseline.csopsRet == 0 ? "0x\(String(baseline.csopsFlags, radix: 16))" : "失败"
         let hasGTA = baseline.csopsHasGTA
-        AttackResult(
+        return AttackResult(
             layer: layer, layerName: name, attackEnabled: false,
             csopsShown: flagStr,
             gtaShown: hasGTA ? "ON ⚠️ 检出" : "OFF ✅ 正常",
