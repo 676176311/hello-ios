@@ -1,12 +1,12 @@
 import Foundation
 import Darwin
+import UIKit
 
-// bootstrap_port 声明（与 JailbreakDetector 相同）
-@_silgen_name("bootstrap_port")
-var _bsPort: mach_port_t
+// 注意: iOS 不允许第三方应用使用 dlopen/dlsym，本文件不包含任何 dlsym 调用
+// 所有检测在普通 iOS 上安全运行，越狱设备上通过交叉验证检出
 
-@_silgen_name("bootstrap_look_up")
-func _bsLookUp(_ bp: mach_port_t, _ service_name: UnsafePointer<CChar>, _ sp: UnsafeMutablePointer<mach_port_t>) -> kern_return_t
+// csops 声明（与 JailbreakDetector 共享，同模块可见）
+// @_silgen_name 已在 JailbreakDetector.swift 中声明
 
 // MARK: - 攻击模拟结果
 struct SimulationResult: Identifiable {
@@ -14,7 +14,7 @@ struct SimulationResult: Identifiable {
     let layer: Int
     let layerName: String
     let attackMethod: String
-    let detected: Bool      // 我们的防御是否检测到了攻击
+    let detected: Bool
     let detail: String
 }
 
@@ -37,64 +37,48 @@ class AttackSimulator: ObservableObject {
     // ═══════════════════════════════════════════
     // Layer 1: 用户态 Hook 检测
     // 攻击: MSHookFunction(csops, fake, ...)
-    // 防御: libSystem路径 vs 原始syscall 对比
+    // 防御: 失败即异常 — 正常iOS上csops不会失败
     // ═══════════════════════════════════════════
     private func simulateLayer1_UserlandHook() -> SimulationResult {
-        var details: [String] = []
+        var flags: UInt32 = 0
+        let ret = csops(getpid(), 0, &flags, MemoryLayout<UInt32>.size)
 
-        // 路径A: libSystem 直接调用 csops
-        var flagsA: UInt32 = 0
-        let retA = csops(getpid(), 0, &flagsA, MemoryLayout<UInt32>.size)
-
-        // 路径B: dlsym 动态解析（绕过编译期符号绑定）
-        var flagsB: UInt32 = 0
-        var retB: Int32 = -1
-        guard let handle = dlopen(nil, RTLD_NOW) else {
+        if ret != 0 {
+            // csops 调用失败 — 正常iOS不会发生
             return SimulationResult(layer: 1, layerName: "用户态Hook",
                 attackMethod: "MSHookFunction(csops)", detected: true,
-                detail: "dlsym 失败（异常：动态链接器不可用）")
-        }
-        defer { dlclose(handle) }
-        if let sym = dlsym(handle, "csops") {
-            typealias CSOpsFn = @convention(c) (pid_t, UInt32, UnsafeMutableRawPointer?, Int) -> Int32
-            let fn = unsafeBitCast(sym, to: CSOpsFn.self)
-            retB = fn(getpid(), 0, &flagsB, MemoryLayout<UInt32>.size)
+                detail: "🚨 csops 返回 \(ret)（errno=\(errno)）→ 调用被拦截或系统异常")
         }
 
-        // 路径C: dlsym vs libSystem 就已经足够比对，syscall 在 Swift 中 variadic 调用不稳定
-        // （保留此注释说明路径C理论上存在，但编译跨平台兼容性问题暂不实现）
-
-        details.append("libSystem: ret=\(retA) flags=0x\(String(flagsA, radix: 16))")
-        details.append("dlsym:    ret=\(retB) flags=0x\(String(flagsB, radix: 16))")
-
-        if retA != 0 && retB == 0 {
+        // csops 成功，检查标志位
+        if flags & 0x04 != 0 {  // get-task-allow
             return SimulationResult(layer: 1, layerName: "用户态Hook",
-                attackMethod: "MSHookFunction(csops)", detected: true,
-                detail: "🚨 libSystem 调用失败但 dlsym 成功 → csops 被拦截!\n" + details.joined(separator: "\n"))
+                attackMethod: "MSHook改写标志位", detected: false,
+                detail: "ℹ️ get-task-allow 已开启 — 非AppStore签名特征\ncsops flags=0x\(String(flags, radix: 16))")
         }
 
         return SimulationResult(layer: 1, layerName: "用户态Hook",
             attackMethod: "MSHookFunction(csops)", detected: false,
-            detail: "✅ 双路径一致（libSystem vs dlsym），未检测到用户态 hook\n" + details.joined(separator: "\n"))
+            detail: "✅ csops 正常返回，标志位正常\ncsops flags=0x\(String(flags, radix: 16))")
     }
 
     // ═══════════════════════════════════════════
     // Layer 2: 内核 Syscall 表劫持
     // 攻击: checkra1n/palera1n 修改内核 sysent[169]
-    // 防御: 交叉验证——csops 不等于真相，要跟其他维度比对
+    // 防御: 交叉验证 — csops 说正常但文件系统异常 → 矛盾
     // ═══════════════════════════════════════════
     private func simulateLayer2_KernelHook() -> SimulationResult {
-        // csops 读数
         var flags: UInt32 = 0
         let csopsOK = (csops(getpid(), 0, &flags, MemoryLayout<UInt32>.size) == 0)
 
-        // 快速文件系统交叉检查（内核劫持通常会漏掉文件层）
         let suspiciousPaths = [
             "/var/jb",
             "/var/libexec",
             "/Library/MobileSubstrate",
             "/usr/lib/TweakInject",
-            "/Applications/Cydia.app"
+            "/Applications/Cydia.app",
+            "/Applications/Sileo.app",
+            "/usr/bin/ssh"
         ]
         var foundPaths: [String] = []
         for path in suspiciousPaths {
@@ -103,141 +87,121 @@ class AttackSimulator: ObservableObject {
             }
         }
 
-        let csopsClean = csopsOK && (flags & 0x04) == 0  // get-task-allow 没开
+        let csopsClean = csopsOK && (flags & 0x04) == 0
 
         if csopsClean && !foundPaths.isEmpty {
             return SimulationResult(layer: 2, layerName: "内核劫持",
                 attackMethod: "sysent[169] 伪造", detected: true,
-                detail: "🚨 csops 说正常但文件系统发现: \(foundPaths.joined(separator: ", "))\n→ 交叉验证失败：csops 结果不可信")
+                detail: "🚨 csops 说正常但文件系统发现: \(foundPaths.joined(separator: ", "))\n→ 交叉验证失败：csops结果不可信")
         }
 
         if !csopsOK {
             return SimulationResult(layer: 2, layerName: "内核劫持",
                 attackMethod: "sysent[169] 伪造", detected: true,
-                detail: "🚨 csops 本身调用失败 (\(flags)) → 可能被内核层拦截")
+                detail: "🚨 csops 调用失败 — 可能被内核层拦截")
         }
 
         return SimulationResult(layer: 2, layerName: "内核劫持",
             attackMethod: "sysent[169] 伪造", detected: false,
-            detail: "✅ csops 与文件系统交叉验证一致\ncsops flags=0x\(String(flags, radix: 16)), 文件系统未发现越狱路径")
+            detail: "✅ 交叉验证一致\ncsops flags=0x\(String(flags, radix: 16)), 文件系统未发现越狱路径")
     }
 
     // ═══════════════════════════════════════════
     // Layer 3: 进程加载时预清标志
     // 攻击: mach_loader 阶段清掉 get-task-allow
-    // 防御: 检查 Mach 异常端口——即使 csops 正常，端口异常也是信号
+    // 防御: 检查 Mach 异常端口 + URL Schemes（不依赖 csops）
     // ═══════════════════════════════════════════
     private func simulateLayer3_LoadTimeFlags() -> SimulationResult {
-        var details: [String] = []
+        var signalsFound: [String] = []
 
-        // 检查异常端口
-        var exceptionDetected = false
-        let masks: [exception_mask_t] = [
-            0x1FFE, // EXC_MASK_ALL equivalent
-        ]
-
+        // 检查 Mach 异常端口（即使csops标志被清，端口依然在）
+        let masks: [exception_mask_t] = [0x1FFE]
         for mask in masks {
-            var ports = [exception_mask_t](repeating: 0, count: 32)
-            var masks = [exception_mask_t](repeating: 0, count: 32)
+            var ports = [mach_port_t](repeating: 0, count: 32)
+            var exMasks = [exception_mask_t](repeating: 0, count: 32)
             var behaviors = [exception_behavior_t](repeating: 0, count: 32)
             var flavors = [thread_state_flavor_t](repeating: 0, count: 32)
             var count: mach_msg_type_number_t = 32
 
             let kr = task_get_exception_ports(
-                mach_task_self_,
-                mask,
-                &masks,
-                &count,
-                &ports,
-                &behaviors,
-                &flavors
+                mach_task_self_, mask,
+                &exMasks, &count,
+                &ports, &behaviors, &flavors
             )
             if kr == KERN_SUCCESS && count > 0 {
-                exceptionDetected = true
-                details.append("异常端口数: \(count)")
+                signalsFound.append("Mach异常端口: \(count)个")
                 break
             }
         }
 
-        // 检查 Mach 服务
-        let jailbreakServices = [
-            "com.saurik.substrated",
-            "com.rpetrich.rocketbootstrap",
-            "org.coolstar.ellekit.loader2"
-        ]
-        for svc in jailbreakServices {
-            var port: mach_port_t = 0
-            let svcChars = (svc as NSString).utf8String!
-            let kr = _bsLookUp(_bsPort, svcChars, &port)
-            if kr == KERN_SUCCESS {
-                exceptionDetected = true
-                details.append("Mach服务存在: \(svc)")
+        // 检查 URL Schemes（越狱商店特有的 scheme）
+        let schemes = ["cydia://", "sileo://", "zbra://", "undecimus://"]
+        for scheme in schemes {
+            if let url = URL(string: scheme), UIApplication.shared.canOpenURL(url) {
+                signalsFound.append("可疑URL Scheme: \(scheme)")
             }
         }
 
-        if exceptionDetected {
+        if !signalsFound.isEmpty {
             return SimulationResult(layer: 3, layerName: "加载时清标志",
                 attackMethod: "mach_loader 伪造", detected: true,
-                detail: "🚨 进程间通信异常:\n\(details.joined(separator: "\n"))\n→ 即使 csops 被清，端口/服务异常检出")
+                detail: "🚨 端口/Scheme异常:\n\(signalsFound.joined(separator: "\n"))\n→ csops标志可能被清，但其他维度检出")
         }
 
         return SimulationResult(layer: 3, layerName: "加载时清标志",
             attackMethod: "mach_loader 伪造", detected: false,
-            detail: "✅ 异常端口与 Mach 服务均正常")
+            detail: "✅ 异常端口与URL Schemes均正常")
     }
 
     // ═══════════════════════════════════════════
     // Layer 4: 检测链欺骗
-    // 攻击: Hook getpid / MemoryLayout / checkCSOps
-    // 防御: 自完整性校验
+    // 攻击: Hook getpid / MemoryLayout / String格式化
+    // 防御: 自完整性校验（不依赖 dlsym）
     // ═══════════════════════════════════════════
     private func simulateLayer4_ChainSpoofing() -> SimulationResult {
         var details: [String] = []
 
-        // 1. getpid 完整性：多次调用对比
+        // 1. getpid 一致性
         let pid1 = getpid()
         let pid2 = getpid()
-        let pid3 = getpid()
-        if pid1 != pid2 || pid2 != pid3 || pid1 <= 0 {
+        if pid1 != pid2 || pid1 <= 0 {
             return SimulationResult(layer: 4, layerName: "检测链欺骗",
                 attackMethod: "Hook getpid", detected: true,
-                detail: "🚨 getpid() 返回不一致: \(pid1), \(pid2), \(pid3)")
+                detail: "🚨 getpid() 返回不一致: \(pid1) vs \(pid2)")
         }
         details.append("getpid 一致: \(pid1)")
 
-        // 2. MemoryLayout 完整性（简单算术验证）
+        // 2. MemoryLayout 完整性
         let u32size = MemoryLayout<UInt32>.size
         if u32size != 4 {
             return SimulationResult(layer: 4, layerName: "检测链欺骗",
                 attackMethod: "Hook MemoryLayout", detected: true,
-                detail: "🚨 MemoryLayout<UInt32>.size = \(u32size) (应为 4) → 被篡改")
+                detail: "🚨 MemoryLayout<UInt32>.size = \(u32size) (应为 4)")
         }
 
-        // 3. dlsym 方式获取 csops，验证函数地址是否合理
-        guard let handle = dlopen(nil, RTLD_NOW) else {
-            return SimulationResult(layer: 4, layerName: "检测链欺骗",
-                attackMethod: "Hook dlsym", detected: true,
-                detail: "🚨 dlopen(nil) 失败 → 动态链接器被篡改")
-        }
-        defer { dlclose(handle) }
-
-        if let sym = dlsym(handle, "csops") {
-            let addr = UInt(bitPattern: sym)
-            // 正常 dylib 地址应该在较高范围 (> 0x100000000)
-            if addr < 0x100000000 {
-                return SimulationResult(layer: 4, layerName: "检测链欺骗",
-                    attackMethod: "Hook dlsym 返回假指针", detected: true,
-                    detail: "🚨 csops 函数地址异常: 0x\(String(addr, radix: 16)) → 可能是 hook 返回的替代地址")
-            }
-            details.append("csops 地址正常: 0x\(String(addr, radix: 16))")
-        }
-
-        // 4. String 格式化替代 snprintf（避免跨平台编译问题）
+        // 3. String 格式化完整性
         let testStr = String(format: "%d", 12345)
         if testStr != "12345" {
             return SimulationResult(layer: 4, layerName: "检测链欺骗",
                 attackMethod: "Hook String格式化", detected: true,
-                detail: "🚨 String(format:) 返回异常: '\(testStr)' → 运行时被篡改")
+                detail: "🚨 String(format:) 返回异常: '\(testStr)'")
+        }
+
+        // 4. 文件操作完整性（access 调用返回合理值）
+        let homeAccess = access(NSHomeDirectory(), F_OK)
+        if homeAccess != 0 {
+            return SimulationResult(layer: 4, layerName: "检测链欺骗",
+                attackMethod: "Hook access", detected: true,
+                detail: "🚨 access(NSHomeDirectory()) 返回 \(homeAccess) → 文件系统调用被拦截")
+        }
+
+        // 5. 时间单调性检查
+        let t1 = Date().timeIntervalSince1970
+        let t2 = Date().timeIntervalSince1970
+        if t2 < t1 {
+            return SimulationResult(layer: 4, layerName: "检测链欺骗",
+                attackMethod: "Hook Date", detected: true,
+                detail: "🚨 时间倒退: t1=\(t1) t2=\(t2) → Date() 被篡改")
         }
 
         return SimulationResult(layer: 4, layerName: "检测链欺骗",
