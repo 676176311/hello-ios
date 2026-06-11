@@ -26,6 +26,7 @@ func bootstrap_look_up(_ bp: mach_port_t, _ service_name: UnsafePointer<CChar>, 
 class JailbreakDetector: ObservableObject {
     @Published var results: [JailbreakCheck] = []
     @Published var isJailbroken: Bool = false
+    @Published var csopsGTAFlag: Bool = false
 
     func runAllChecks() {
         var checks: [JailbreakCheck] = []
@@ -471,6 +472,7 @@ class JailbreakDetector: ObservableObject {
     private func checkCSOps() -> (Bool, String) {
         var flags: UInt32 = 0
         let ret = csops(getpid(), 0, &flags, MemoryLayout<UInt32>.size)
+        csopsGTAFlag = (ret == 0) && ((flags & 0x04) != 0)
         if ret != 0 {
             // 调用失败本身就可疑（正常iOS上csops不会失败）
             return (true, "csops调用异常(ret=\(ret))")
