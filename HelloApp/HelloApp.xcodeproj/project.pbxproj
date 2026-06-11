@@ -9,12 +9,16 @@
 /* Begin PBXBuildFile section */
 		D5E0F1A2B3C4D5E6F7A8B9C7 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0F1A2B3C4D5E6F7A8B9C4 /* App.swift */; };
 		D5E0F1A2B3C4D5E6F7A8B9C8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0F1A2B3C4D5E6F7A8B9C5 /* ContentView.swift */; };
+		D5E0F1A2B3C4D5E6F7A8B9D5 /* JailbreakDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0F1A2B3C4D5E6F7A8B9D3 /* JailbreakDetector.swift */; };
+		D5E0F1A2B3C4D5E6F7A8B9D6 /* HardwareInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0F1A2B3C4D5E6F7A8B9D4 /* HardwareInfo.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		D5E0F1A2B3C4D5E6F7A8B9C4 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		D5E0F1A2B3C4D5E6F7A8B9C5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D5E0F1A2B3C4D5E6F7A8B9C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D5E0F1A2B3C4D5E6F7A8B9D3 /* JailbreakDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JailbreakDetector.swift; sourceTree = "<group>"; };
+		D5E0F1A2B3C4D5E6F7A8B9D4 /* HardwareInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareInfo.swift; sourceTree = "<group>"; };
 		D5E0F1A2B3C4D5E6F7A8B9C9 /* HelloApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HelloApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -42,6 +46,8 @@
 			children = (
 				D5E0F1A2B3C4D5E6F7A8B9C4 /* App.swift */,
 				D5E0F1A2B3C4D5E6F7A8B9C5 /* ContentView.swift */,
+				D5E0F1A2B3C4D5E6F7A8B9D3 /* JailbreakDetector.swift */,
+				D5E0F1A2B3C4D5E6F7A8B9D4 /* HardwareInfo.swift */,
 				D5E0F1A2B3C4D5E6F7A8B9C6 /* Info.plist */,
 			);
 			path = HelloApp;
@@ -109,6 +115,8 @@
 			files = (
 				D5E0F1A2B3C4D5E6F7A8B9C7 /* App.swift in Sources */,
 				D5E0F1A2B3C4D5E6F7A8B9C8 /* ContentView.swift in Sources */,
+				D5E0F1A2B3C4D5E6F7A8B9D5 /* JailbreakDetector.swift in Sources */,
+				D5E0F1A2B3C4D5E6F7A8B9D6 /* HardwareInfo.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
