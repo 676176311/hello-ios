@@ -180,7 +180,7 @@ class HardwareInfo: ObservableObject {
 
         // ── 语言/地区 ──
         params.append(HardwareParam(name: "系统语言", value: Locale.preferredLanguages.first ?? "unknown"))
-        params.append(HardwareParam(name: "地区", value: Locale.current.regionCode ?? "unknown"))
+        params.append(HardwareParam(name: "地区", value: Locale.current.region?.identifier ?? "unknown"))
 
         // ── 时区 ──
         let tz = TimeZone.current
@@ -224,7 +224,7 @@ class HardwareInfo: ObservableObject {
         var size = MemoryLayout<timeval>.size
         var mib: [Int32] = [CTL_KERN, KERN_BOOTTIME]
         guard sysctl(&mib, UInt32(mib.count), &tv, &size, nil, 0) == 0 else { return nil }
-        return tv.tv_sec
+        return Int64(tv.tv_sec)
     }
 
     // MARK: - 存储信息

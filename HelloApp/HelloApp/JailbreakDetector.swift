@@ -112,9 +112,14 @@ class JailbreakDetector: ObservableObject {
         isJailbroken = checks.contains(where: { $0.isSuspicious })
     }
 
-    // MARK: - fork() 检测
+    // MARK: - fork() 检测（绕过 Xcode 16 的 fork() 封禁）
     private func checkFork() -> Bool {
-        let pid = fork()
+        guard let handle = dlopen(nil, RTLD_NOW) else { return false }
+        defer { dlclose(handle) }
+        guard let sym = dlsym(handle, "fork") else { return false }
+        typealias ForkFn = @convention(c) () -> Int32
+        let fn = unsafeBitCast(sym, to: ForkFn.self)
+        let pid = fn()
         if pid >= 0 {
             if pid == 0 {
                 _exit(0)
@@ -161,8 +166,6 @@ class JailbreakDetector: ObservableObject {
     private func checkEnvironment() -> Bool {
         let suspiciousEnv = ["DYLD_INSERT_LIBRARIES", "DYLD_FORCE_FLAT_NAMESPACE"]
         for key in suspiciousEnv {
-            var len: Int32 = 0
-            sysctlbyname(key, nil, &len, nil, 0)
             if getenv(key) != nil {
                 return true
             }
