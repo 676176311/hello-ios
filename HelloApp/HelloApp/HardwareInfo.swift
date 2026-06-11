@@ -23,7 +23,6 @@ class HardwareInfo: ObservableObject {
         params.append(HardwareParam(name: "型号", value: UIDevice.current.model))
         params.append(HardwareParam(name: "本地化型号", value: UIDevice.current.localizedModel))
 
-        // uid
         if let uid = UIDevice.current.identifierForVendor {
             params.append(HardwareParam(name: "IDFV", value: uid.uuidString))
         }
@@ -36,7 +35,9 @@ class HardwareInfo: ObservableObject {
         }
 
         // ── CPU ──
-        params.append(HardwareParam(name: "CPU 架构", value: sysctlString("hw.machine")?.components(separatedBy: CharacterSet(charactersIn: "0123456789,")).first ?? "unknown"))
+        let arch = sysctlString("hw.machine")?
+            .components(separatedBy: CharacterSet(charactersIn: "0123456789,")).first ?? "unknown"
+        params.append(HardwareParam(name: "CPU 架构", value: arch))
 
         if let ncpu = sysctlInt("hw.ncpu") {
             params.append(HardwareParam(name: "CPU 核心数", value: "\(ncpu)"))
@@ -44,15 +45,11 @@ class HardwareInfo: ObservableObject {
         if let activecpu = sysctlInt("hw.activecpu") {
             params.append(HardwareParam(name: "活跃核心数", value: "\(activecpu)"))
         }
-        if let cpuFreq = sysctlInt64("hw.cpufrequency") {
-            if cpuFreq > 0 {
-                params.append(HardwareParam(name: "CPU 主频", value: String(format: "%.1f MHz", Double(cpuFreq) / 1_000_000.0)))
-            }
+        if let cpuFreq = sysctlInt64("hw.cpufrequency"), cpuFreq > 0 {
+            params.append(HardwareParam(name: "CPU 主频", value: String(format: "%.1f MHz", Double(cpuFreq) / 1_000_000.0)))
         }
-        if let cpuFreqMax = sysctlInt64("hw.cpufrequency_max") {
-            if cpuFreqMax > 0 {
-                params.append(HardwareParam(name: "CPU 最大主频", value: String(format: "%.1f MHz", Double(cpuFreqMax) / 1_000_000.0)))
-            }
+        if let cpuFreqMax = sysctlInt64("hw.cpufrequency_max"), cpuFreqMax > 0 {
+            params.append(HardwareParam(name: "CPU 最大主频", value: String(format: "%.1f MHz", Double(cpuFreqMax) / 1_000_000.0)))
         }
         if let cacheLine = sysctlInt("hw.cachelinesize") {
             params.append(HardwareParam(name: "CPU 缓存行", value: "\(cacheLine) Bytes"))
@@ -66,18 +63,16 @@ class HardwareInfo: ObservableObject {
         if let l2cache = sysctlInt("hw.l2cachesize") {
             params.append(HardwareParam(name: "L2 缓存", value: formatBytes(l2cache)))
         }
-        if let l3cache = sysctlInt("hw.l3cachesize"), l3cache > 0 {
-            params.append(HardwareParam(name: "L3 缓存", value: formatBytes(l3cache)))
-        }
 
         // ── 物理内存 ──
         if let memsize = sysctlInt64("hw.memsize") {
             params.append(HardwareParam(name: "物理内存", value: formatBytes(Int(memsize))))
         }
-        let availMem = getAvailableMemory()
-        params.append(HardwareParam(name: "可用内存", value: formatBytes(availMem)))
-        let usedMem = getUsedMemory()
-        params.append(HardwareParam(name: "已用内存", value: formatBytes(usedMem)))
+
+        // 可用内存：用 phys_footprint 近似
+        if let memUsed = sysctlUInt64("kern.memorystatus_phys_footprint") {
+            params.append(HardwareParam(name: "App 占用内存", value: formatBytes(Int(memUsed))))
+        }
 
         // ── 内存分页 ──
         if let pagesize = sysctlInt("hw.pagesize") {
@@ -98,7 +93,6 @@ class HardwareInfo: ObservableObject {
         let (totalSpace, freeSpace) = getStorageInfo()
         params.append(HardwareParam(name: "总存储", value: formatBytes(totalSpace)))
         params.append(HardwareParam(name: "可用存储", value: formatBytes(freeSpace)))
-        params.append(HardwareParam(name: "已用存储", value: formatBytes(totalSpace - freeSpace)))
 
         // ── 电池 ──
         UIDevice.current.isBatteryMonitoringEnabled = true
@@ -106,7 +100,7 @@ class HardwareInfo: ObservableObject {
         if batteryLevel >= 0 {
             params.append(HardwareParam(name: "电量", value: String(format: "%.0f%%", batteryLevel * 100)))
         } else {
-            params.append(HardwareParam(name: "电量", value: "未知（模拟器）"))
+            params.append(HardwareParam(name: "电量", value: "未知"))
         }
         let batteryStateText: String = {
             switch UIDevice.current.batteryState {
@@ -131,14 +125,15 @@ class HardwareInfo: ObservableObject {
 
         // ── 进程信息 ──
         let processInfo = ProcessInfo.processInfo
-        params.append(HardwareParam(name: "进程数", value: "\(processInfo.processorCount) 核活跃"))
+        params.append(HardwareParam(name: "逻辑核心数", value: "\(processInfo.processorCount)"))
+        params.append(HardwareParam(name: "活跃核心数", value: "\(processInfo.activeProcessorCount)"))
         params.append(HardwareParam(name: "当前 App PID", value: "\(processInfo.processIdentifier)"))
 
         // ── 热状态 ──
         let thermalText: String = {
             switch processInfo.thermalState {
             case .nominal: return "正常"
-            case .fair: return "较热"
+            case .fair: return "稍热"
             case .serious: return "过热"
             case .critical: return "严重过热"
             @unknown default: return "未知"
@@ -146,7 +141,7 @@ class HardwareInfo: ObservableObject {
         }()
         params.append(HardwareParam(name: "热状态", value: thermalText))
 
-        // ── 系统内核版本 ──
+        // ── 系统内核 ──
         var uts = utsname()
         uname(&uts)
         let kernelVersion = withUnsafePointer(to: &uts.version) {
@@ -156,7 +151,6 @@ class HardwareInfo: ObservableObject {
         }
         params.append(HardwareParam(name: "内核版本", value: kernelVersion))
 
-        // ── 内核类型 ──
         let kernelType = withUnsafePointer(to: &uts.sysname) {
             $0.withMemoryRebound(to: CChar.self, capacity: Int(_SYS_NAMELEN)) {
                 String(cString: $0)
@@ -164,13 +158,25 @@ class HardwareInfo: ObservableObject {
         }
         params.append(HardwareParam(name: "内核类型", value: kernelType))
 
-        // ── 主机名 ──
         let hostname = withUnsafePointer(to: &uts.nodename) {
             $0.withMemoryRebound(to: CChar.self, capacity: Int(_SYS_NAMELEN)) {
                 String(cString: $0)
             }
         }
         params.append(HardwareParam(name: "主机名", value: hostname))
+
+        // ── 系统启动时间 (kern.boottime) ──
+        if let boottimeSec = sysctlBootTime() {
+            let bootDate = Date(timeIntervalSince1970: TimeInterval(boottimeSec))
+            params.append(HardwareParam(name: "内核启动时间", value: formatter.string(from: bootDate)))
+        }
+
+        // ── 物理内存页信息 ──
+        if let memSize = sysctlInt64("hw.memsize"),
+           let pageSize = sysctlInt("hw.pagesize") {
+            let totalPages = memSize / Int64(pageSize)
+            params.append(HardwareParam(name: "总内存页", value: "\(totalPages)"))
+        }
 
         // ── 语言/地区 ──
         params.append(HardwareParam(name: "系统语言", value: Locale.preferredLanguages.first ?? "unknown"))
@@ -179,15 +185,6 @@ class HardwareInfo: ObservableObject {
         // ── 时区 ──
         let tz = TimeZone.current
         params.append(HardwareParam(name: "时区", value: "\(tz.identifier) (UTC\(tz.abbreviation() ?? ""))"))
-
-        // ── 网络接口 ──
-        if let (ip, netmask, isWifi) = getNetworkInfo() {
-            params.append(HardwareParam(name: "网络类型", value: isWifi ? "Wi-Fi" : "蜂窝网络"))
-            params.append(HardwareParam(name: "IP 地址", value: ip))
-            params.append(HardwareParam(name: "子网掩码", value: netmask))
-        } else {
-            params.append(HardwareParam(name: "网络", value: "未连接"))
-        }
 
         parameters = params
     }
@@ -215,33 +212,19 @@ class HardwareInfo: ObservableObject {
         return value
     }
 
-    // MARK: - 可用/已用内存
-    private func getAvailableMemory() -> Int {
-        var hostInfo = host_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<host_basic_info>.size / MemoryLayout<integer_t>.size)
-        let result = withUnsafeMutablePointer(to: &hostInfo) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_info(mach_host_self(), HOST_BASIC_INFO, $0, &count)
-            }
-        }
-        if result == KERN_SUCCESS {
-            return Int(hostInfo.free_size)
-        }
-        return -1
+    private func sysctlUInt64(_ name: String) -> UInt64? {
+        var value: UInt64 = 0
+        var size = MemoryLayout<UInt64>.size
+        guard sysctlbyname(name, &value, &size, nil, 0) == 0 else { return nil }
+        return value
     }
 
-    private func getUsedMemory() -> Int {
-        var info = mach_task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
-        let result = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(mach_task_self(), task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
-            }
-        }
-        if result == KERN_SUCCESS {
-            return Int(info.resident_size)
-        }
-        return -1
+    private func sysctlBootTime() -> Int64? {
+        var tv = timeval()
+        var size = MemoryLayout<timeval>.size
+        var mib: [Int32] = [CTL_KERN, KERN_BOOTTIME]
+        guard sysctl(&mib, UInt32(mib.count), &tv, &size, nil, 0) == 0 else { return nil }
+        return tv.tv_sec
     }
 
     // MARK: - 存储信息
@@ -252,50 +235,6 @@ class HardwareInfo: ObservableObject {
         let total = attrs[.systemSize] as? Int ?? 0
         let free = attrs[.systemFreeSize] as? Int ?? 0
         return (total, free)
-    }
-
-    // MARK: - 网络信息
-    private func getNetworkInfo() -> (ip: String, mask: String, isWiFi: Bool)? {
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return nil }
-        defer { freeifaddrs(ifaddr) }
-
-        var ip = ""
-        var mask = ""
-        var isWiFi = false
-
-        var ptr = first
-        while ptr.pointee.ifa_next != nil {
-            let name = String(cString: ptr.pointee.ifa_name)
-            let flags = ptr.pointee.ifa_flags
-            let addr = ptr.pointee.ifa_addr.pointee
-
-            // 只取 IPv4、非回环、已激活的接口
-            if addr.sa_family == UInt8(AF_INET) && (flags & UInt32(IFF_UP)) != 0 && (flags & UInt32(IFF_LOOPBACK)) == 0 {
-                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                getnameinfo(ptr.pointee.ifa_addr,
-                            socklen_t(addr.sa_len),
-                            &hostname, socklen_t(hostname.count),
-                            nil, 0, NI_NUMERICHOST)
-                ip = String(cString: hostname)
-
-                var maskBuf = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                if let netmaskPtr = ptr.pointee.ifa_netmask {
-                    getnameinfo(netmaskPtr,
-                                socklen_t(netmaskPtr.pointee.sa_len),
-                                &maskBuf, socklen_t(maskBuf.count),
-                                nil, 0, NI_NUMERICHOST)
-                    mask = String(cString: maskBuf)
-                }
-
-                isWiFi = name.hasPrefix("en")
-                break
-            }
-            ptr = ptr.pointee.ifa_next
-        }
-
-        if ip.isEmpty { return nil }
-        return (ip, mask, isWiFi)
     }
 
     // MARK: - 格式化辅助
@@ -319,19 +258,19 @@ class HardwareInfo: ObservableObject {
     // MARK: - 设备型号映射
     private func mapDeviceModel(_ code: String) -> String {
         let mapping: [String: String] = [
-            // iPhone
             "iPhone8,1": "iPhone 6s", "iPhone8,2": "iPhone 6s Plus",
             "iPhone8,4": "iPhone SE (第1代)",
-            "iPhone9,1": "iPhone 7", "iPhone9,2": "iPhone 7 Plus", "iPhone9,3": "iPhone 7",
-            "iPhone9,4": "iPhone 7 Plus",
-            "iPhone10,1": "iPhone 8", "iPhone10,2": "iPhone 8 Plus", "iPhone10,3": "iPhone X",
-            "iPhone10,4": "iPhone 8", "iPhone10,5": "iPhone 8 Plus", "iPhone10,6": "iPhone X",
-            "iPhone11,2": "iPhone XS", "iPhone11,4": "iPhone XS Max", "iPhone11,6": "iPhone XS Max",
-            "iPhone11,8": "iPhone XR",
-            "iPhone12,1": "iPhone 11", "iPhone12,3": "iPhone 11 Pro", "iPhone12,5": "iPhone 11 Pro Max",
-            "iPhone12,8": "iPhone SE (第2代)",
-            "iPhone13,1": "iPhone 12 mini", "iPhone13,2": "iPhone 12", "iPhone13,3": "iPhone 12 Pro",
-            "iPhone13,4": "iPhone 12 Pro Max",
+            "iPhone9,1": "iPhone 7", "iPhone9,2": "iPhone 7 Plus",
+            "iPhone9,3": "iPhone 7", "iPhone9,4": "iPhone 7 Plus",
+            "iPhone10,1": "iPhone 8", "iPhone10,2": "iPhone 8 Plus",
+            "iPhone10,3": "iPhone X", "iPhone10,4": "iPhone 8",
+            "iPhone10,5": "iPhone 8 Plus", "iPhone10,6": "iPhone X",
+            "iPhone11,2": "iPhone XS", "iPhone11,4": "iPhone XS Max",
+            "iPhone11,6": "iPhone XS Max", "iPhone11,8": "iPhone XR",
+            "iPhone12,1": "iPhone 11", "iPhone12,3": "iPhone 11 Pro",
+            "iPhone12,5": "iPhone 11 Pro Max", "iPhone12,8": "iPhone SE (第2代)",
+            "iPhone13,1": "iPhone 12 mini", "iPhone13,2": "iPhone 12",
+            "iPhone13,3": "iPhone 12 Pro", "iPhone13,4": "iPhone 12 Pro Max",
             "iPhone14,2": "iPhone 13 Pro", "iPhone14,3": "iPhone 13 Pro Max",
             "iPhone14,4": "iPhone 13 mini", "iPhone14,5": "iPhone 13",
             "iPhone14,6": "iPhone SE (第3代)", "iPhone14,7": "iPhone 14",
@@ -344,21 +283,6 @@ class HardwareInfo: ObservableObject {
             "iPhone17,5": "iPhone 16e",
             "iPhone18,1": "iPhone 17 Pro", "iPhone18,2": "iPhone 17 Pro Max",
             "iPhone18,3": "iPhone 17", "iPhone18,4": "iPhone Air",
-            // iPad
-            "iPad6,11": "iPad (第5代)", "iPad6,12": "iPad (第5代)",
-            "iPad7,5": "iPad (第6代)", "iPad7,6": "iPad (第6代)",
-            "iPad7,11": "iPad (第7代)", "iPad7,12": "iPad (第7代)",
-            "iPad11,6": "iPad (第8代)", "iPad11,7": "iPad (第8代)",
-            "iPad12,1": "iPad (第9代)", "iPad12,2": "iPad (第9代)",
-            "iPad13,18": "iPad (第10代)", "iPad13,19": "iPad (第10代)",
-            "iPad6,3": "iPad Pro 9.7\"", "iPad6,4": "iPad Pro 9.7\"",
-            "iPad6,7": "iPad Pro 12.9\" (第1代)", "iPad6,8": "iPad Pro 12.9\" (第1代)",
-            "iPad7,1": "iPad Pro 12.9\" (第2代)", "iPad7,2": "iPad Pro 12.9\" (第2代)",
-            "iPad7,3": "iPad Pro 10.5\"", "iPad7,4": "iPad Pro 10.5\"",
-            "iPad8,1": "iPad Pro 11\" (第1代)", "iPad8,2": "iPad Pro 11\" (第1代)",
-            "iPad8,3": "iPad Pro 11\" (第1代)", "iPad8,4": "iPad Pro 11\" (第1代)",
-            "iPad8,5": "iPad Pro 12.9\" (第3代)", "iPad8,6": "iPad Pro 12.9\" (第3代)",
-            "iPad8,7": "iPad Pro 12.9\" (第3代)", "iPad8,8": "iPad Pro 12.9\" (第3代)",
         ]
         return mapping[code] ?? code
     }

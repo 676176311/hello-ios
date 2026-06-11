@@ -17,6 +17,7 @@ jobs:
 
       - name: Build unsigned .app
         run: |
+          set -o pipefail
           xcodebuild archive \
             -project HelloApp/HelloApp.xcodeproj \
             -scheme HelloApp \
@@ -25,9 +26,19 @@ jobs:
             -archivePath output.xcarchive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 3
 
       - name: Package .ipa
+        if: success()
         run: |
           mkdir Payload
           cp -R output.xcarchive/Products/Applications/HelloApp.app Payload/
@@ -35,6 +46,7 @@ jobs:
           rm -rf Payload
 
       - name: Upload IPA artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: HelloApp

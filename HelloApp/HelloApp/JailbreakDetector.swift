@@ -1,6 +1,5 @@
 import Foundation
 import UIKit
-import Darwin
 
 // MARK: - 检测结果模型
 struct JailbreakCheck: Identifiable {
@@ -40,7 +39,7 @@ class JailbreakDetector: ObservableObject {
         checks.append(JailbreakCheck(
             name: "越狱应用",
             isSuspicious: !foundApps.isEmpty,
-            detail: foundApps.isEmpty ? "未发现已知越狱应用" : "发现: \(foundApps.joined(separator: ", "))"
+            detail: foundApps.isEmpty ? "未发现已知越狱应用" : "发现: \(foundApps.count) 个"
         ))
 
         // ── 2. 可疑文件/路径 ──
@@ -93,15 +92,7 @@ class JailbreakDetector: ObservableObject {
             detail: schemeResult.1
         ))
 
-        // ── 6. 动态库注入检测 ──
-        let dylibResult = checkSuspiciousDylibs()
-        checks.append(JailbreakCheck(
-            name: "动态库注入",
-            isSuspicious: dylibResult,
-            detail: dylibResult ? "检测到可疑动态库" : "无双倍可疑动态库"
-        ))
-
-        // ── 7. 环境变量检测 ──
+        // ── 6. 环境变量检测 ──
         let envResult = checkEnvironment()
         checks.append(JailbreakCheck(
             name: "环境变量",
@@ -109,7 +100,7 @@ class JailbreakDetector: ObservableObject {
             detail: envResult ? "发现可疑环境变量" : "环境变量正常"
         ))
 
-        // ── 8. 符号链接检测 ──
+        // ── 7. 符号链接检测 ──
         let symlinkResult = checkSymlinks()
         checks.append(JailbreakCheck(
             name: "符号链接",
@@ -125,7 +116,6 @@ class JailbreakDetector: ObservableObject {
     private func checkFork() -> Bool {
         let pid = fork()
         if pid >= 0 {
-            // fork 成功 → 越狱环境下才可能
             if pid == 0 {
                 _exit(0)
             } else {
@@ -154,10 +144,9 @@ class JailbreakDetector: ObservableObject {
         var detectable: [String] = []
 
         for scheme in schemes {
-            if let url = URL(string: scheme) {
-                if UIApplication.shared.canOpenURL(url) {
-                    detectable.append(scheme)
-                }
+            if let url = URL(string: scheme),
+               UIApplication.shared.canOpenURL(url) {
+                detectable.append(scheme)
             }
         }
 
@@ -168,39 +157,12 @@ class JailbreakDetector: ObservableObject {
         }
     }
 
-    // MARK: - 可疑动态库
-    private func checkSuspiciousDylibs() -> Bool {
-        let suspiciousLibs = [
-            "MobileSubstrate",
-            "SubstrateLoader",
-            "libsubstitute",
-            "libhooker",
-            "CydiaSubstrate",
-            "substrate",
-            "TSInject",
-            "frida",
-            "cynject",
-            "jelbrek",
-        ]
-
-        let imageCount = _dyld_image_count()
-        for i in 0..<imageCount {
-            if let namePtr = _dyld_get_image_name(i) {
-                let name = String(cString: namePtr).lowercased()
-                for lib in suspiciousLibs {
-                    if name.contains(lib.lowercased()) {
-                        return true
-                    }
-                }
-            }
-        }
-        return false
-    }
-
     // MARK: - 环境变量
     private func checkEnvironment() -> Bool {
         let suspiciousEnv = ["DYLD_INSERT_LIBRARIES", "DYLD_FORCE_FLAT_NAMESPACE"]
         for key in suspiciousEnv {
+            var len: Int32 = 0
+            sysctlbyname(key, nil, &len, nil, 0)
             if getenv(key) != nil {
                 return true
             }
