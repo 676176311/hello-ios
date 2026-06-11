@@ -397,16 +397,10 @@ class JailbreakDetector: ObservableObject {
     }
 
     // MARK: - fork() 检测
-    // 注意: iOS SDK 禁用了 fork() 且 dlopen/dlsym 在普通 iOS 上不可用
-    // 越狱环境特有的 fork 能力通过以下间接方式检测:
-    // 1) 是否存在 /usr/bin 下的命令行工具（越狱设备有 wget/curl/ssh 等）
-    // 2) shell 可用性（system() 调用是否返回合理值）
+    // 注意: iOS SDK 禁用了 fork() 和 system()
+    // 通过检查越狱环境特有的命令行工具来间接检测
     private func checkFork() -> Bool {
-        // 检测 system() 是否可用 — 普通 iOS 返回 -1（SIGSYS），越狱设备可能工作
-        let ret = system("echo jbtest > /dev/null 2>&1")
-        if ret == 0 { return true }
-        // 备选: 检查常见命令行工具存在性
-        let cliTools = ["/usr/bin/apt", "/usr/bin/dpkg", "/usr/bin/ssh", "/bin/bash"]
+        let cliTools = ["/usr/bin/apt", "/usr/bin/dpkg", "/usr/bin/ssh", "/bin/bash", "/usr/bin/scp"]
         for tool in cliTools {
             if access(tool, X_OK) == 0 { return true }
         }
