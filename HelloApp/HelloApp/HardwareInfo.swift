@@ -1,7 +1,5 @@
 import Foundation
 import UIKit
-import Darwin
-import MachO
 
 // MARK: - 硬件参数模型
 struct HardwareParam: Identifiable {
