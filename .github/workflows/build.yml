@@ -61,6 +61,7 @@ jobs:
           clang -arch arm64 -isysroot "$SDKROOT" \
             -miphoneos-version-min=16.0 \
             -dynamiclib \
+            -Wl,-undefined,dynamic_lookup \
             -o CSOpsBypass/CSOpsBypass.dylib \
             CSOpsBypass/CSOpsBypass.c \
             CSOpsBypass/fishhook.c \
