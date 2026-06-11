@@ -14,6 +14,10 @@ struct JailbreakCheck: Identifiable {
 @_silgen_name("csops")
 func csops(_ pid: pid_t, _ ops: UInt32, _ useraddr: UnsafeMutableRawPointer?, _ usersize: Int) -> Int32
 
+// bootstrap_port 全局变量（Xcode 16 Swift 无法直接访问，用 @_silgen_name 桥接）
+@_silgen_name("bootstrap_port")
+var _bootstrap_port: mach_port_t
+
 // MARK: - bootstrap_look_up 申明
 @_silgen_name("bootstrap_look_up")
 func bootstrap_look_up(_ bp: mach_port_t, _ service_name: UnsafePointer<CChar>, _ sp: UnsafeMutablePointer<mach_port_t>) -> kern_return_t
@@ -561,7 +565,7 @@ class JailbreakDetector: ObservableObject {
 
         let kr = task_get_exception_ports(
             mach_task_self_,
-            EXC_MASK_ALL,
+            0x1FFE, // EXC_MASK_ALL
             &masks,
             &count,
             &ports,
@@ -600,7 +604,7 @@ class JailbreakDetector: ObservableObject {
         for (name, desc) in services {
             var port: mach_port_t = 0
             let kr = name.withCString { cstr in
-                bootstrap_look_up(bootstrap_port, cstr, &port)
+                bootstrap_look_up(_bootstrap_port, cstr, &port)
             }
             if kr == KERN_SUCCESS || kr == 1102 {
                 found.append(desc)
@@ -634,7 +638,7 @@ class JailbreakDetector: ObservableObject {
         guard kr == KERN_SUCCESS else { return (false, "vm_region 调用失败") }
 
         let protection = rawInfo[0]
-        if protection != Int32(VM_PROT_READ) && protection != Int32(VM_PROT_READ | VM_PROT_EXECUTE) {
+        if protection != 1 && protection != 5 { // VM_PROT_READ=1, VM_PROT_READ|VM_PROT_EXECUTE=5
             return (true, "VM 区域保护异常: 0x\(String(protection, radix: 16))")
         }
 
