@@ -474,11 +474,10 @@ class JailbreakDetector: ObservableObject {
         return (false, "未发现")
     }
 
-    // MARK: - csops 代码签名标志（三路径对比抗用户态hook）
+    // MARK: - csops 代码签名标志（双路径对比抗用户态hook）
     private func checkCSOps() -> (Bool, String) {
         var flagsA: UInt32 = 0
         var flagsB: UInt32 = 0
-        var flagsC: UInt32 = 0
 
         // 路径A: libSystem 静态链接
         let retA = csops(getpid(), 0, &flagsA, MemoryLayout<UInt32>.size)
@@ -494,21 +493,17 @@ class JailbreakDetector: ObservableObject {
             }
         }
 
-        // 路径C: 原始 syscall
-        let retC = Int32(syscall(169, getpid(), 0, &flagsC, MemoryLayout<UInt32>.size))
-
-        // 检查1: 任一调用失败 → 可疑（正常iOS上csops从不会失败）
-        if retA != 0 || (retB != 0 && retB != -1) || retC != 0 {
+        // 检查1: 任一调用失败 → 可疑
+        if retA != 0 || retB > 0 {
             var parts: [String] = []
             if retA != 0 { parts.append("libSystem失败(ret=\(retA))") }
             if retB > 0 { parts.append("dlsym失败(ret=\(retB))") }
-            if retC != 0 { parts.append("syscall失败(ret=\(retC))") }
             return (true, "csops调用异常: \(parts.joined(separator: ", ")) (可能被拦截)")
         }
 
-        // 检查2: 三路径对比不一致 → csops 被 hook
-        if flagsA != flagsB || flagsB != flagsC {
-            return (true, "三路径不一致: A=0x\(String(flagsA, radix: 16)) B=0x\(String(flagsB, radix: 16)) C=0x\(String(flagsC, radix: 16)) → 系统调用被拦截")
+        // 检查2: 双路径对比不一致 → csops 被 hook
+        if flagsA != flagsB {
+            return (true, "双路径不一致: libSystem=0x\(String(flagsA, radix: 16)) dlsym=0x\(String(flagsB, radix: 16)) → 系统调用被拦截")
         }
 
         // 路径一致，分析标志位
@@ -521,7 +516,7 @@ class JailbreakDetector: ObservableObject {
         if flags & 0x00004000 != 0 { issues.append("异常权限") }
 
         if issues.isEmpty {
-            return (false, "签名标志正常（三路径一致）")
+            return (false, "签名标志正常（双路径一致）")
         }
         return (true, "发现: \(issues.joined(separator: ", "))")
     }
