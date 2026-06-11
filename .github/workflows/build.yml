@@ -1,0 +1,42 @@
+name: Build iOS IPA
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+  workflow_dispatch:   # 允许手动触发
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build unsigned .app
+        run: |
+          xcodebuild archive \
+            -project HelloApp/HelloApp.xcodeproj \
+            -scheme HelloApp \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath output.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package .ipa
+        run: |
+          mkdir Payload
+          cp -R output.xcarchive/Products/Applications/HelloApp.app Payload/
+          zip -r HelloApp.ipa Payload
+          rm -rf Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HelloApp
+          path: HelloApp.ipa
+          retention-days: 7

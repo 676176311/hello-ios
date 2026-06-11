@@ -1,0 +1,4 @@
+*.xcarchive
+*.ipa
+DerivedData/
+.DS_Store
