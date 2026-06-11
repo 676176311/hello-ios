@@ -5,12 +5,22 @@ struct ContentView: View {
     @State private var allEnabled = false
     @State private var layerEnabled = [false, false, false, false]
 
-    private let layerInfo = [
-        (name: "用户态 Hook", emoji: "🎣", desc: "攻击者用 MSHookFunction 拦截 csops(), 让它返回干净标志", method: "MSHookFunction(csops)"),
-        (name: "内核 Syscall 劫持", emoji: "💉", desc: "checkra1n 等级的内核漏洞, 直接修改 sysent[169] csops 入口", method: "sysent[169] 伪造"),
-        (name: "加载时清标志", emoji: "🧹", desc: "在 mach_loader 阶段提前清掉 get-task-allow 等可疑标志", method: "mach_loader 预清"),
-        (name: "检测链欺骗", emoji: "🪞", desc: "Hook getpid/MemoryLayout/String等底层函数, 破坏检测链路", method: "多函数 Hook"),
+    private let layerInfo: [(name: String, emoji: String, desc: String, method: String)] = [
+        ("用户态 Hook", "🎣", "攻击者用 MSHookFunction 拦截 csops(), 让它返回干净标志", "MSHookFunction(csops)"),
+        ("内核 Syscall 劫持", "💉", "checkra1n 级内核漏洞, 直接修改 sysent[169] csops 入口", "sysent[169] 伪造"),
+        ("加载时清标志", "🧹", "在 mach_loader 阶段提前清掉 get-task-allow 等可疑标志", "mach_loader 预清"),
+        ("检测链欺骗", "🪞", "Hook getpid/MemoryLayout/String 等底层函数, 全链路欺骗", "多函数 Hook"),
     ]
+
+    private func resultForLayer(_ i: Int) -> LayerResult? {
+        switch i {
+        case 0: return simulator.layer1
+        case 1: return simulator.layer2
+        case 2: return simulator.layer3
+        case 3: return simulator.layer4
+        default: return nil
+        }
+    }
 
     var body: some View {
         NavigationView {
@@ -23,6 +33,9 @@ struct ContentView: View {
                         Text("每个攻击层可独立开关，观察防御检测的变化")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        Text("⚠ 本App仅供安全学习研究，禁止非法使用")
+                            .font(.caption2)
+                            .foregroundColor(.red.opacity(0.7))
                     }
                     .padding(.top, 16)
                     .padding(.bottom, 12)
@@ -51,40 +64,51 @@ struct ContentView: View {
                             index: i,
                             info: layerInfo[i],
                             enabled: $layerEnabled[i],
-                            result: simulator.layerResults[i],
-                            onRun: { simulator.layerResults[i] = simulator.layerResults[i] }
-                        ) {
-                            runLayer(i)
-                        }
+                            result: resultForLayer(i),
+                            onRun: { runLayer(i) }
+                        )
                         .padding(.horizontal, 12)
                         .padding(.bottom, 10)
                     }
 
                     // 底部总结
-                    VStack(spacing: 6) {
-                        let detected = simulator.layerResults.filter { $0.detected }.count
-                        let tested = simulator.layerResults.filter { $0.layer > 0 }.count
-                        Text("检出: \(detected)/\(tested) 层")
-                            .font(.headline)
-                            .foregroundColor(detected > 0 ? .red : .green)
-                        if detected > 0 {
-                            Text("⚠️ 设备存在越狱或攻击痕迹")
-                                .font(.caption)
-                                .foregroundColor(.red)
-                        } else if tested > 0 {
-                            Text("✅ 未检测到攻击痕迹")
-                                .font(.caption)
-                                .foregroundColor(.green)
+                    if simulator.baseline != nil {
+                        VStack(spacing: 6) {
+                            let results = [simulator.layer1, simulator.layer2, simulator.layer3, simulator.layer4]
+                            let tested = results.filter { $0 != nil }.count
+                            let detected = results.compactMap { $0 }.filter { $0.detected }.count
+                            Text("检出: \(detected)/\(tested) 层")
+                                .font(.headline)
+                                .foregroundColor(detected > 0 ? .red : .green)
+                            if detected > 0 {
+                                Text("⚠️ 模拟攻击被防御检出 — 攻击无法隐藏痕迹")
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            } else if tested > 0 {
+                                Text("✅ 所有层防御正常")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            } else {
+                                Text("点击各层「运行测试」开始")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
+                        .padding(.vertical, 16)
                     }
-                    .padding(.vertical, 16)
                 }
             }
             .navigationBarHidden(true)
+            .onAppear {
+                simulator.baseline = collectBaseline()
+            }
         }
     }
 
     private func runLayer(_ i: Int) {
+        if simulator.baseline == nil {
+            simulator.baseline = collectBaseline()
+        }
         switch i {
         case 0: simulator.testLayer1(attackEnabled: layerEnabled[i])
         case 1: simulator.testLayer2(attackEnabled: layerEnabled[i])
@@ -100,13 +124,12 @@ struct LayerCard: View {
     let index: Int
     let info: (name: String, emoji: String, desc: String, method: String)
     @Binding var enabled: Bool
-    let result: LayerResult
+    let result: LayerResult?
     let onRun: () -> Void
-    let runAction: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // 头部：名称 + 开关
+            // 头部
             HStack {
                 Text("\(info.emoji) Layer \(index+1): \(info.name)")
                     .font(.subheadline.bold())
@@ -127,9 +150,9 @@ struct LayerCard: View {
                     .font(.caption2)
                     .foregroundColor(.orange)
                 Spacer()
-                Button(action: runAction) {
+                Button(action: onRun) {
                     HStack(spacing: 4) {
-                        if result.layer > 0 && result.attackEnabled == enabled {
+                        if result != nil {
                             Image(systemName: "arrow.clockwise")
                                 .font(.caption2)
                         }
@@ -145,45 +168,32 @@ struct LayerCard: View {
             }
 
             // 结果区域
-            if result.layer > 0 {
-                VStack(alignment: .leading, spacing: 4) {
+            if let res = result {
+                VStack(alignment: .leading, spacing: 6) {
+                    // 模式指示
                     HStack {
                         Circle()
-                            .fill(result.attackEnabled ? Color.red : Color.green)
+                            .fill(res.attackEnabled ? Color.red : Color.green)
                             .frame(width: 8, height: 8)
-                        Text(result.attackEnabled ? "🔴 攻击模拟: ON" : "🟢 正常模式")
+                        Text(res.attackEnabled ? "🔴 攻击模拟: ON" : "🟢 正常模式")
                             .font(.caption.bold())
-                            .foregroundColor(result.attackEnabled ? .red : .green)
+                            .foregroundColor(res.attackEnabled ? .red : .green)
                         Spacer()
-                        if result.detected {
-                            Text("⚠️ 检出")
-                                .font(.caption.bold())
-                                .foregroundColor(.red)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.red.opacity(0.15))
-                                .cornerRadius(4)
-                        } else {
-                            Text("✓ 正常")
-                                .font(.caption)
-                                .foregroundColor(.green)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.green.opacity(0.15))
-                                .cornerRadius(4)
-                        }
+                        Text(res.detected ? "⚠️ 检出" : "✓ 正常")
+                            .font(.caption.bold())
+                            .foregroundColor(res.detected ? .red : .green)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(res.detected ? Color.red.opacity(0.15) : Color.green.opacity(0.15))
+                            .cornerRadius(4)
                     }
 
-                    Text("基线: \(result.baseline)")
+                    // 详情
+                    Text(res.attackEnabled ? "\(res.safeDetail)\n\n\(res.attackDetail)" : res.safeDetail)
                         .font(.caption2)
-                        .foregroundColor(.secondary)
-
-                    if result.attackEnabled || result.detected {
-                        Text("结果: \(result.attackDetail)")
-                            .font(.caption2)
-                            .foregroundColor(result.detected ? .red : .orange)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                        .foregroundColor(res.attackEnabled ? (res.detected ? .red : .orange) : .secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineSpacing(4)
                 }
                 .padding(10)
                 .background(Color(.systemGray6))
