@@ -2,11 +2,10 @@ import Foundation
 import Darwin
 import UIKit
 
-// csops 声明（iOS 可用的代码签名检测 API）
 @_silgen_name("csops")
 func csops(_ pid: pid_t, _ ops: UInt32, _ useraddr: UnsafeMutableRawPointer?, _ usersize: Int) -> Int32
 
-// ━━━ 通用基线采集 ━━━
+// MARK: - 真实基线
 struct BaselineSnapshot {
     let csopsFlags: UInt32
     let csopsRet: Int32
@@ -37,17 +36,14 @@ func collectBaseline() -> BaselineSnapshot {
     let p1 = getpid(), p2 = getpid()
     let pidOK = p1 == p2 && p1 > 0
     let memOK = MemoryLayout<UInt32>.size == 4
-    let strOK = (String(format: "%d", 12345) == "12345")
-    let t1 = Date().timeIntervalSince1970
-    let t2 = Date().timeIntervalSince1970
+    let strOK = String(format: "%d", 12345) == "12345"
+    let t1 = Date().timeIntervalSince1970, t2 = Date().timeIntervalSince1970
     let timeOK = t2 >= t1
     let homeOK = access(NSHomeDirectory(), F_OK) == 0
 
     var schemes: [String] = []
     for s in ["cydia://", "sileo://", "zbra://"] {
-        if let url = URL(string: s), UIApplication.shared.canOpenURL(url) {
-            schemes.append(s)
-        }
+        if let url = URL(string: s), UIApplication.shared.canOpenURL(url) { schemes.append(s) }
     }
 
     return BaselineSnapshot(
@@ -59,158 +55,187 @@ func collectBaseline() -> BaselineSnapshot {
     )
 }
 
-// MARK: - 单层攻击测试结果
-struct LayerResult {
+// MARK: - 结果结构
+
+/// 攻击层结果
+/// `detected`: 是否检出越狱
+/// - 攻击OFF时 detected=true → 防御正常检出
+/// - 攻击ON时 detected=false → 攻击成功绕过
+struct AttackResult {
     let layer: Int
     let layerName: String
     let attackMethod: String
     let attackEnabled: Bool
-    let detected: Bool
-    let safeDetail: String    // 正常基线详情
-    let attackDetail: String  // 攻击模拟详情
+
+    /// 攻击OFF时的真实检测结果
+    let realStatus: String
+
+    /// 攻击ON时的伪造结果说明
+    let bypassDescription: String
+
+    /// 防御方还能做什么（即使本层被绕过）
+    let residualDefense: String
 }
 
-// MARK: - 攻击模拟器
+// MARK: - 模拟器
 class AttackSimulator: ObservableObject {
-    @Published var layer1: LayerResult?
-    @Published var layer2: LayerResult?
-    @Published var layer3: LayerResult?
-    @Published var layer4: LayerResult?
+    @Published var layer1: AttackResult?
+    @Published var layer2: AttackResult?
+    @Published var layer3: AttackResult?
+    @Published var layer4: AttackResult?
     @Published var baseline: BaselineSnapshot?
 
-    // ━━━ Layer 1: 用户态 Hook ━━━
+    // ━━━ Layer 1: 用户态 Hook csops ━━━
     func testLayer1(attackEnabled: Bool) {
         let bl = baseline!
-        let flagStr = bl.csopsRet == 0 ? "0x\(String(bl.csopsFlags, radix: 16))" : "调用失败"
         let csopsOK = bl.csopsRet == 0
-        let hasGTA = csopsOK && (bl.csopsFlags & 0x04) != 0
+        let rawFlagStr = csopsOK ? "0x\(String(bl.csopsFlags, radix: 16))" : "调用失败"
+        let hasGTA = csopsOK && ((bl.csopsFlags & 0x04) != 0)
+        let realDetected = csopsOK && hasGTA
 
         if attackEnabled {
-            // 模拟: 攻击者用 MSHookFunction 拦截了 csops, 让它返回干净标志（假装没有 get-task-allow）
-            // 但防御通过文件系统交叉验证发现了越狱痕迹
-            let fakePaths = ["/Applications/Cydia.app", "/Library/MobileSubstrate/MobileSubstrate.dylib"]
-            layer1 = LayerResult(
-                layer: 1, layerName: "用户态Hook",
+            layer1 = AttackResult(
+                layer: 1,
+                layerName: "用户态 Hook",
                 attackMethod: "MSHookFunction(csops)",
-                attackEnabled: true, detected: true,
-                safeDetail: "真实csops=\(flagStr) get-task-allow=\(hasGTA ? "ON" : "OFF")",
-                attackDetail: """
-                【攻击】Hook了csops, 让它返回 flags=0x0 (伪装干净)
-                【防御】文件交叉验证发现: \(fakePaths.joined(separator: ", "))
-                【结论】csops说干净但Cydia存在 → 击穿了Hook伪装
-                """
+                attackEnabled: true,
+                realStatus: "真实系统: csops=\(rawFlagStr) → get-task-allow=\(hasGTA ? "ON" : "OFF")",
+                bypassDescription: """
+                【攻击生效】用 MSHookFunction 拦截 csops()
+                csops 现在返回 flags=0x0 → get-task-allow=OFF
+                注入进程的 dylib 在 csops 调用前篡改了返回值
+                检测方看到的: 签名干净, 无越狱痕迹
+                """,
+                residualDefense: "文件系统交叉验证 (检查 /Applications/Cydia.app 等路径)"
             )
         } else {
-            layer1 = LayerResult(
-                layer: 1, layerName: "用户态Hook",
+            layer1 = AttackResult(
+                layer: 1,
+                layerName: "用户态 Hook",
                 attackMethod: "MSHookFunction(csops)",
-                attackEnabled: false, detected: false,
-                safeDetail: "真实csops=\(flagStr) get-task-allow=\(hasGTA ? "ON (开发签名正常)" : "OFF")",
-                attackDetail: "攻击未启用, 系统运行正常"
+                attackEnabled: false,
+                realStatus: "真实系统: csops=\(rawFlagStr)\n→ get-task-allow=\(hasGTA ? "ON ⚠️ 检出越狱" : "OFF ✅ 正常")",
+                bypassDescription: "攻击未启用",
+                residualDefense: ""
             )
         }
     }
 
-    // ━━━ Layer 2: 内核 Syscall 表劫持 ━━━
+    // ━━━ Layer 2: 内核 syscall 表劫持 ━━━
     func testLayer2(attackEnabled: Bool) {
         let bl = baseline!
-        let flagStr = bl.csopsRet == 0 ? "0x\(String(bl.csopsFlags, radix: 16))" : "调用失败"
         let csopsOK = bl.csopsRet == 0
-        let hasGTA = csopsOK && (bl.csopsFlags & 0x04) != 0
+        let rawFlagStr = csopsOK ? "0x\(String(bl.csopsFlags, radix: 16))" : "调用失败"
+        let hasGTA = csopsOK && ((bl.csopsFlags & 0x04) != 0)
 
         if attackEnabled {
-            // 模拟: checkra1n 级内核漏洞, 直接改 sysent[169] (csops 入口)
-            // csops 返回完全伪造的值, 但文件系统无法隐藏
-            let fakePaths = ["/var/jb", "/usr/bin/ssh", "/bin/bash"]
-            layer2 = LayerResult(
-                layer: 2, layerName: "内核Syscall劫持",
-                attackMethod: "sysent[169]伪造",
-                attackEnabled: true, detected: true,
-                safeDetail: "真实csops=\(flagStr) get-task-allow=\(hasGTA ? "ON" : "OFF")",
-                attackDetail: """
-                【攻击】内核级漏洞篡改sysent[169], csops直接返回虚假结果
-                【防御】绕过csops, 直接检查文件系统:
-                发现: \(fakePaths.joined(separator: ", "))
-                【结论】内核级也可通过IO交叉验证检出
-                """
+            layer2 = AttackResult(
+                layer: 2,
+                layerName: "内核 Syscall 劫持",
+                attackMethod: "sysent[169] 伪造",
+                attackEnabled: true,
+                realStatus: "真实系统: csops=\(rawFlagStr) → get-task-allow=\(hasGTA ? "ON" : "OFF")",
+                bypassDescription: """
+                【攻击生效】修改内核 sysent[169] 表项 (csops 系统调用入口)
+                内核直接返回伪造的代码签名标志 → 所有用户态调用均被欺骗
+                比 Layer1 更彻底: Hook 在用户态, Syscall劫持在内核态
+                任何通过 csops 的检测全部失效
+                """,
+                residualDefense: "直接遍历 proc 结构 (需要 root), 异常端口检测"
             )
         } else {
-            layer2 = LayerResult(
-                layer: 2, layerName: "内核Syscall劫持",
-                attackMethod: "sysent[169]伪造",
-                attackEnabled: false, detected: false,
-                safeDetail: "真实csops=\(flagStr) get-task-allow=\(hasGTA ? "ON (开发签名正常)" : "OFF")",
-                attackDetail: "攻击未启用, 内核层正常"
+            layer2 = AttackResult(
+                layer: 2,
+                layerName: "内核 Syscall 劫持",
+                attackMethod: "sysent[169] 伪造",
+                attackEnabled: false,
+                realStatus: "真实系统: csops=\(rawFlagStr)\n→ get-task-allow=\(hasGTA ? "ON ⚠️ 检出越狱" : "OFF ✅ 正常")",
+                bypassDescription: "攻击未启用",
+                residualDefense: ""
             )
         }
     }
 
-    // ━━━ Layer 3: Mach 加载时清标志 ━━━
+    // ━━━ Layer 3: Mach Loader 预清标志 ━━━
     func testLayer3(attackEnabled: Bool) {
         let bl = baseline!
-        let portDesc = bl.excPortCount > 0 ? "\(bl.excPortCount)个端口" : "无异常端口"
-        let schemeDesc = bl.jbSchemes.isEmpty ? "无越狱Scheme" : bl.jbSchemes.joined(separator: ",")
+        let portDesc = bl.excPortCount > 0 ? "发现 \(bl.excPortCount) 个异常端口" : "无异常端口"
+        let schemeDesc = bl.jbSchemes.isEmpty ? "无越狱Scheme" : bl.jbSchemes.joined(separator: ", ")
+        let csopsOK = bl.csopsRet == 0
+        let hasGTA = csopsOK && ((bl.csopsFlags & 0x04) != 0)
+        let rawFlagStr = csopsOK ? "0x\(String(bl.csopsFlags, radix: 16))" : "调用失败"
 
         if attackEnabled {
-            // 模拟: mach_loader 阶段清掉了 csops 标志
-            // 但异常端口和 URL Schemes 暴露了真相
-            layer3 = LayerResult(
-                layer: 3, layerName: "加载时清标志",
-                attackMethod: "mach_loader预清csops",
-                attackEnabled: true, detected: true,
-                safeDetail: "异常端口: \(portDesc), URL Schemes: \(schemeDesc)",
-                attackDetail: """
-                【攻击】在mach_loader阶段提前清除了get-task-allow标志
-                【防御】不依赖csops, 改用:
-                - 异常端口检测: 发现 debugserver 注册了异常端口
-                - URL Schemes: 发现 cydia:// 可响应
-                【结论】csops可被绕过, 但端口和Scheme无法隐藏
-                """
+            layer3 = AttackResult(
+                layer: 3,
+                layerName: "加载时清标志",
+                attackMethod: "mach_loader 预清",
+                attackEnabled: true,
+                realStatus: "真实系统: csops=\(rawFlagStr)",
+                bypassDescription: """
+                【攻击生效】在 mach_loader 加载 App 二进制时
+                提前清除 csops 中的 get-task-allow 等可疑标志
+                代码还没开始执行, 标志已经被清空了
+                csops 检测方看到的: 完全干净的签名标志
+                这是最隐蔽的绕过方式之一
+                """,
+                residualDefense: "Mach 异常端口 (task_get_exception_ports), URL Schemes, 进程列表"
             )
         } else {
-            layer3 = LayerResult(
-                layer: 3, layerName: "加载时清标志",
-                attackMethod: "mach_loader预清csops",
-                attackEnabled: false, detected: false,
-                safeDetail: "异常端口: \(portDesc), URL Schemes: \(schemeDesc)",
-                attackDetail: "攻击未启用, Mach层正常"
+            layer3 = AttackResult(
+                layer: 3,
+                layerName: "加载时清标志",
+                attackMethod: "mach_loader 预清",
+                attackEnabled: false,
+                realStatus: "真实系统: csops=\(rawFlagStr)\n→ get-task-allow=\(hasGTA ? "ON ⚠️ 检出越狱" : "OFF ✅ 正常")\n异常端口: \(portDesc)\nURL Schemes: \(schemeDesc)",
+                bypassDescription: "攻击未启用",
+                residualDefense: ""
             )
         }
     }
 
-    // ━━━ Layer 4: 检测链欺骗 ━━━
+    // ━━━ Layer 4: 检测链全欺骗 ━━━
     func testLayer4(attackEnabled: Bool) {
         let bl = baseline!
+        let csopsOK = bl.csopsRet == 0
+        let hasGTA = csopsOK && ((bl.csopsFlags & 0x04) != 0)
+        let rawFlagStr = csopsOK ? "0x\(String(bl.csopsFlags, radix: 16))" : "调用失败"
+
         var checks: [String] = []
         if bl.pidConsistent { checks.append("getpid ✓") } else { checks.append("getpid ✗") }
         if bl.memLayoutOK { checks.append("MemoryLayout ✓") } else { checks.append("MemoryLayout ✗") }
         if bl.stringFormatOK { checks.append("String(format:) ✓") } else { checks.append("String(format:) ✗") }
-        if bl.timeMonotonic { checks.append("时间单调 ✓") } else { checks.append("时间倒退 ✗") }
-        if bl.homeAccessOK { checks.append("access() ✓") } else { checks.append("access() ✗") }
+        if bl.timeMonotonic { checks.append("时间 ✓") } else { checks.append("时间倒退 ✗") }
+        if bl.homeAccessOK { checks.append("access ✓") } else { checks.append("access ✗") }
 
         if attackEnabled {
-            // 模拟: 攻击者 Hook 了多个底层函数来欺骗检测链
-            layer4 = LayerResult(
-                layer: 4, layerName: "检测链欺骗",
-                attackMethod: "多函数Hook",
-                attackEnabled: true, detected: true,
-                safeDetail: "5项检查: \(checks.joined(separator: ", "))",
-                attackDetail: """
-                【攻击】Hook getpid/MemoryLayout/String/Date/access 破坏检测链
-                【防御】多重自检:
-                - getpid()连续调用发现不一致
-                - MemoryLayout<UInt32>.size异常
-                - String(format:)格式化异常
-                【结论】攻击者要Hook全链路, 任一遗漏即暴露
-                """
+            layer4 = AttackResult(
+                layer: 4,
+                layerName: "检测链全欺骗",
+                attackMethod: "多函数 Hook",
+                attackEnabled: true,
+                realStatus: "真实系统: csops=\(rawFlagStr)\n自检: \(checks.joined(separator: ", "))",
+                bypassDescription: """
+                【攻击生效】Hook 整个检测链路:
+                - getpid() → 返回伪造PID
+                - MemoryLayout → 返回正常值
+                - String(format:) → 格式化正常
+                - Date() → 时间正常
+                - access() → 文件不存在
+                所有检测手段全部欺骗, 防御方无从下手
+                这是最全面的攻击: 攻击者控制了整个检测链
+                """,
+                residualDefense: "硬件特征 (不可伪造), 内核断点检测, 代码完整性校验"
             )
         } else {
-            layer4 = LayerResult(
-                layer: 4, layerName: "检测链欺骗",
-                attackMethod: "多函数Hook",
-                attackEnabled: false, detected: false,
-                safeDetail: "5项检查: \(checks.joined(separator: ", "))",
-                attackDetail: "攻击未启用, 检测链完整"
+            layer4 = AttackResult(
+                layer: 4,
+                layerName: "检测链全欺骗",
+                attackMethod: "多函数 Hook",
+                attackEnabled: false,
+                realStatus: "真实系统: csops=\(rawFlagStr)\n→ get-task-allow=\(hasGTA ? "ON ⚠️ 检出" : "OFF ✅ 正常")\n自检: \(checks.joined(separator: ", "))",
+                bypassDescription: "攻击未启用",
+                residualDefense: ""
             )
         }
     }
