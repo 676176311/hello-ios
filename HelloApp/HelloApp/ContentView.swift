@@ -3,6 +3,7 @@ import SwiftUI
 struct MainView: View {
     @EnvironmentObject var detector: JailbreakDetector
     @EnvironmentObject var hardware: HardwareInfo
+    @EnvironmentObject var attackSimulator: AttackSimulator
 
     var body: some View {
         NavigationStack {
@@ -13,6 +14,9 @@ struct MainView: View {
 
                     // 逐项检测结果
                     jailbreakChecksSection
+
+                    // 攻击模拟防御测试
+                    attackSimulationSection
 
                     // 硬件参数
                     hardwareSection
@@ -74,6 +78,51 @@ struct MainView: View {
                     .foregroundColor(.secondary)
                     .padding(16)
             }
+        }
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: - 攻击模拟防御测试
+    var attackSimulationSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Image(systemName: "shield.righthalf.filled")
+                    .foregroundColor(attackSimulator.isCompromised ? .red : .green)
+                Text("防御自检 (4层攻击模拟)")
+                    .font(.headline)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            ForEach(attackSimulator.results) { result in
+                SimulationRow(result: result)
+                if result.id != attackSimulator.results.last?.id {
+                    Divider().padding(.leading, 56)
+                }
+            }
+
+            if attackSimulator.results.isEmpty {
+                Text("点击下方按钮运行攻击模拟...")
+                    .foregroundColor(.secondary)
+                    .padding(16)
+            }
+
+            Button(action: { attackSimulator.runAllSimulations() }) {
+                HStack {
+                    Image(systemName: "play.fill")
+                    Text("运行 4 层攻击模拟")
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -155,6 +204,39 @@ struct HardwareParamRow: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - 攻击模拟行
+struct SimulationRow: View {
+    let result: SimulationResult
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: result.detected ? "shield.slash.fill" : "shield.checkered")
+                .font(.title3)
+                .foregroundColor(result.detected ? .red : .green)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text("Layer \(result.layer): \(result.layerName)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Spacer()
+                    Text(result.detected ? "🚨 检出" : "✅ 防住")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(result.detected ? .red : .green)
+                }
+                Text(result.detail)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

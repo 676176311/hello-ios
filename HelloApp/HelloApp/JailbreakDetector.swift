@@ -474,12 +474,45 @@ class JailbreakDetector: ObservableObject {
         return (false, "未发现")
     }
 
-    // MARK: - csops 代码签名标志
+    // MARK: - csops 代码签名标志（三路径对比抗用户态hook）
     private func checkCSOps() -> (Bool, String) {
-        var flags: UInt32 = 0
-        let ret = csops(getpid(), 0, &flags, MemoryLayout<UInt32>.size)
-        guard ret == 0 else { return (false, "csops 调用失败") }
+        var flagsA: UInt32 = 0
+        var flagsB: UInt32 = 0
+        var flagsC: UInt32 = 0
 
+        // 路径A: libSystem 静态链接
+        let retA = csops(getpid(), 0, &flagsA, MemoryLayout<UInt32>.size)
+
+        // 路径B: dlsym 动态解析（绕过编译期符号绑定）
+        var retB: Int32 = -1
+        if let handle = dlopen(nil, RTLD_NOW) {
+            defer { dlclose(handle) }
+            if let sym = dlsym(handle, "csops") {
+                typealias CSOpsFn = @convention(c) (pid_t, UInt32, UnsafeMutableRawPointer?, Int) -> Int32
+                let fn = unsafeBitCast(sym, to: CSOpsFn.self)
+                retB = fn(getpid(), 0, &flagsB, MemoryLayout<UInt32>.size)
+            }
+        }
+
+        // 路径C: 原始 syscall
+        let retC = Int32(syscall(169, getpid(), 0, &flagsC, MemoryLayout<UInt32>.size))
+
+        // 检查1: 任一调用失败 → 可疑（正常iOS上csops从不会失败）
+        if retA != 0 || (retB != 0 && retB != -1) || retC != 0 {
+            var parts: [String] = []
+            if retA != 0 { parts.append("libSystem失败(ret=\(retA))") }
+            if retB > 0 { parts.append("dlsym失败(ret=\(retB))") }
+            if retC != 0 { parts.append("syscall失败(ret=\(retC))") }
+            return (true, "csops调用异常: \(parts.joined(separator: ", ")) (可能被拦截)")
+        }
+
+        // 检查2: 三路径对比不一致 → csops 被 hook
+        if flagsA != flagsB || flagsB != flagsC {
+            return (true, "三路径不一致: A=0x\(String(flagsA, radix: 16)) B=0x\(String(flagsB, radix: 16)) C=0x\(String(flagsC, radix: 16)) → 系统调用被拦截")
+        }
+
+        // 路径一致，分析标志位
+        let flags = flagsA
         var issues: [String] = []
         if flags & 0x00000004 != 0 { issues.append("get-task-allow") }
         if flags & 0x04000000 != 0 { issues.append("非标准平台二进制") }
@@ -488,7 +521,7 @@ class JailbreakDetector: ObservableObject {
         if flags & 0x00004000 != 0 { issues.append("异常权限") }
 
         if issues.isEmpty {
-            return (false, "签名标志正常")
+            return (false, "签名标志正常（三路径一致）")
         }
         return (true, "发现: \(issues.joined(separator: ", "))")
     }
