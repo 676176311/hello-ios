@@ -53,7 +53,7 @@ class AttackSimulator: ObservableObject {
                 layerResults[0] = LayerResult(layer: 1, layerName: "用户态Hook", attackMethod: "MSHook csops", attackEnabled: true, detected: true, baseline: "csops正常", attackDetail: detail)
             } else {
                 let flagStr = "0x\(String(flags, radix: 16))"
-                detail = "csops=\(flagStr) get-task-allow=\((flags&0x04)!=0 ? "ON" : "OFF")"
+                detail = "csops=\(flagStr) get-task-allow=\(((flags & 0x04) != 0) ? "ON" : "OFF")"
                 layerResults[0] = LayerResult(layer: 1, layerName: "用户态Hook", attackMethod: "MSHook csops", attackEnabled: true, detected: false, baseline: "csops正常", attackDetail: detail)
             }
         } else {
