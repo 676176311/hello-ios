@@ -154,5 +154,12 @@ class AttackSimulator: ObservableObject {
         }
 
         results = out
+
+        // 写入系统共享状态 → HelloApp 读取
+        if attackEnabled {
+            SharedAttackState.activate(layers: [1, 2, 3, 4])
+        } else {
+            SharedAttackState.deactivate()
+        }
     }
 }

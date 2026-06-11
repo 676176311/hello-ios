@@ -5,8 +5,9 @@ struct MainView: View {
     @EnvironmentObject var hardware: HardwareInfo
     @EnvironmentObject var attackSimulator: AttackSimulator
 
-    @State private var attackMode = false
+    @State private var attackMode = SharedAttackState.isAttackActive
     @State private var showLayers = false
+    @State private var sharedLayers: [Int] = []
 
     var body: some View {
         NavigationStack {
@@ -33,7 +34,20 @@ struct MainView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("设备检测")
+            .onAppear { refreshSharedState() }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                refreshSharedState()
+            }
         }
+    }
+
+    private func refreshSharedState() {
+        if SharedAttackState.isAttackActive {
+            attackMode = true
+            sharedLayers = SharedAttackState.activeLayers
+        }
+        // 不自动关闭: 一旦AttackLab激活, 保持教学状态
+        // 用户可手动关闭toggle或等AttackLab点防御模式清除
     }
 
     // MARK: - 攻击模式开关
@@ -43,11 +57,15 @@ struct MainView: View {
                 Text(attackMode ? "🔓 攻击模式" : "🛡 防御模式")
                     .font(.headline)
                     .foregroundColor(attackMode ? .orange : .green)
-                Text(attackMode
-                     ? "4层攻击已启用 → csops检测被绕过"
-                     : "真实系统调用 → 如实检测越狱状态")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if sharedLayers.isEmpty {
+                    Text(attackMode
+                         ? "本地开关启用 → csops检测被绕过"
+                         : "真实系统调用 → 如实检测越狱状态")
+                        .font(.caption).foregroundColor(.secondary)
+                } else {
+                    Text("由 AttackLab 注入 | 层: \(sharedLayers.map(String.init).joined(separator: ","))")
+                        .font(.caption).foregroundColor(.orange)
+                }
             }
             Spacer()
             Toggle("", isOn: $attackMode)

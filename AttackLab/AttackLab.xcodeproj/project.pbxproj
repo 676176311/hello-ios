@@ -10,6 +10,7 @@
 		D5E0F1A2B3C4D5E6F7A8B9C7 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0F1A2B3C4D5E6F7A8B9C4 /* App.swift */; };
 		D5E0F1A2B3C4D5E6F7A8B9C8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0F1A2B3C4D5E6F7A8B9C5 /* ContentView.swift */; };
 		D5E0F1A2B3C4D5E6F7A8B9D8 /* AttackSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0F1A2B3C4D5E6F7A8B9D7 /* AttackSimulator.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1F1 /* SharedAttackState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* SharedAttackState.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,6 +18,7 @@
 		D5E0F1A2B3C4D5E6F7A8B9C5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D5E0F1A2B3C4D5E6F7A8B9C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D5E0F1A2B3C4D5E6F7A8B9D7 /* AttackSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttackSimulator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* SharedAttackState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedAttackState.swift; sourceTree = "<group>"; };
 		D5E0F1A2B3C4D5E6F7A8B9C9 /* AttackLab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AttackLab.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -45,6 +47,7 @@
 				D5E0F1A2B3C4D5E6F7A8B9C4 /* App.swift */,
 				D5E0F1A2B3C4D5E6F7A8B9C5 /* ContentView.swift */,
 				D5E0F1A2B3C4D5E6F7A8B9D7 /* AttackSimulator.swift */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* SharedAttackState.swift */,
 				D5E0F1A2B3C4D5E6F7A8B9C6 /* Info.plist */,
 			);
 			path = AttackLab;
@@ -113,6 +116,7 @@
 				D5E0F1A2B3C4D5E6F7A8B9C7 /* App.swift in Sources */,
 				D5E0F1A2B3C4D5E6F7A8B9C8 /* ContentView.swift in Sources */,
 				D5E0F1A2B3C4D5E6F7A8B9D8 /* AttackSimulator.swift in Sources */,
+				A1B2C3D4E5F6A7B8C9D0E1F1 /* SharedAttackState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
