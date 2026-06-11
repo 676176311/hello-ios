@@ -1,0 +1,236 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		D5E0F1A2B3C4D5E6F7A8B9C7 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0F1A2B3C4D5E6F7A8B9C4 /* App.swift */; };
+		D5E0F1A2B3C4D5E6F7A8B9C8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0F1A2B3C4D5E6F7A8B9C5 /* ContentView.swift */; };
+		D5E0F1A2B3C4D5E6F7A8B9D8 /* AttackSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0F1A2B3C4D5E6F7A8B9D7 /* AttackSimulator.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		D5E0F1A2B3C4D5E6F7A8B9C4 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		D5E0F1A2B3C4D5E6F7A8B9C5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		D5E0F1A2B3C4D5E6F7A8B9C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D5E0F1A2B3C4D5E6F7A8B9D7 /* AttackSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttackSimulator.swift; sourceTree = "<group>"; };
+		D5E0F1A2B3C4D5E6F7A8B9C9 /* AttackLab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AttackLab.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D5E0F1A2B3C4D5E6F7A8B9CC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D5E0F1A2B3C4D5E6F7A8B9C1 = {
+			isa = PBXGroup;
+			children = (
+				D5E0F1A2B3C4D5E6F7A8B9C2 /* AttackLab */,
+				D5E0F1A2B3C4D5E6F7A8B9C3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D5E0F1A2B3C4D5E6F7A8B9C2 /* AttackLab */ = {
+			isa = PBXGroup;
+			children = (
+				D5E0F1A2B3C4D5E6F7A8B9C4 /* App.swift */,
+				D5E0F1A2B3C4D5E6F7A8B9C5 /* ContentView.swift */,
+				D5E0F1A2B3C4D5E6F7A8B9D7 /* AttackSimulator.swift */,
+				D5E0F1A2B3C4D5E6F7A8B9C6 /* Info.plist */,
+			);
+			path = AttackLab;
+			sourceTree = "<group>";
+		};
+		D5E0F1A2B3C4D5E6F7A8B9C3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D5E0F1A2B3C4D5E6F7A8B9C9 /* AttackLab.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D5E0F1A2B3C4D5E6F7A8B9CA /* AttackLab */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D5E0F1A2B3C4D5E6F7A8B9CE /* Build configuration list for PBXNativeTarget "AttackLab" */;
+			buildPhases = (
+				D5E0F1A2B3C4D5E6F7A8B9CB /* Sources */,
+				D5E0F1A2B3C4D5E6F7A8B9CC /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AttackLab;
+			productName = AttackLab;
+			productReference = D5E0F1A2B3C4D5E6F7A8B9C9 /* AttackLab.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D5E0F1A2B3C4D5E6F7A8B9C0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1530;
+				LastUpgradeCheck = 1530;
+			};
+			buildConfigurationList = D5E0F1A2B3C4D5E6F7A8B9CD /* Build configuration list for PBXProject "AttackLab" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				"zh-Hans",
+			);
+			mainGroup = D5E0F1A2B3C4D5E6F7A8B9C1;
+			productRefGroup = D5E0F1A2B3C4D5E6F7A8B9C3 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D5E0F1A2B3C4D5E6F7A8B9CA /* AttackLab */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D5E0F1A2B3C4D5E6F7A8B9CB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D5E0F1A2B3C4D5E6F7A8B9C7 /* App.swift in Sources */,
+				D5E0F1A2B3C4D5E6F7A8B9C8 /* ContentView.swift in Sources */,
+				D5E0F1A2B3C4D5E6F7A8B9D8 /* AttackSimulator.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		D5E0F1A2B3C4D5E6F7A8B9CF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		D5E0F1A2B3C4D5E6F7A8B9D0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		D5E0F1A2B3C4D5E6F7A8B9D1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = AttackLab/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.attack.lab;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D5E0F1A2B3C4D5E6F7A8B9D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = AttackLab/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.attack.lab;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D5E0F1A2B3C4D5E6F7A8B9CD /* Build configuration list for PBXProject "AttackLab" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D5E0F1A2B3C4D5E6F7A8B9CF /* Debug */,
+				D5E0F1A2B3C4D5E6F7A8B9D0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D5E0F1A2B3C4D5E6F7A8B9CE /* Build configuration list for PBXNativeTarget "AttackLab" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D5E0F1A2B3C4D5E6F7A8B9D1 /* Debug */,
+				D5E0F1A2B3C4D5E6F7A8B9D2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = D5E0F1A2B3C4D5E6F7A8B9C0 /* Project object */;
+}

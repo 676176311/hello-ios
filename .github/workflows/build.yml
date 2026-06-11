@@ -45,10 +45,49 @@ jobs:
           zip -r HelloApp.ipa Payload
           rm -rf Payload
 
-      - name: Upload IPA artifact
+      - name: Upload HelloApp IPA
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: HelloApp
           path: HelloApp.ipa
+          retention-days: 7
+
+      # ━━━━━━━━ AttackLab ━━━━━━━━
+      - name: Build AttackLab .app
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project AttackLab/AttackLab.xcodeproj \
+            -scheme AttackLab \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath output-attacklab.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build-attacklab.log
+
+      - name: Upload AttackLab build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: attacklab-build-log
+          path: build-attacklab.log
+          retention-days: 3
+
+      - name: Package AttackLab .ipa
+        if: success()
+        run: |
+          mkdir Payload
+          cp -R output-attacklab.xcarchive/Products/Applications/AttackLab.app Payload/
+          zip -r AttackLab.ipa Payload
+          rm -rf Payload
+
+      - name: Upload AttackLab IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AttackLab
+          path: AttackLab.ipa
           retention-days: 7
