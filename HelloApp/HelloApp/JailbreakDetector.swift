@@ -235,15 +235,7 @@ class JailbreakDetector: ObservableObject {
             detail: chrootResult ? "根挂载点异常 → 可能 chroot" : "根挂载点正常"
         ))
 
-        // ── 11. 挂载文件系统异常 ──
-        let mountResult = checkMountAnomalies()
-        checks.append(JailbreakCheck(
-            name: "挂载文件系统",
-            isSuspicious: mountResult.0,
-            detail: mountResult.1
-        ))
-
-        // ── 12. fork() 检测 ──
+        // ── 11. fork() 检测 ──
         let forkResult = checkFork()
         checks.append(JailbreakCheck(
             name: "fork() 调用",
@@ -369,7 +361,7 @@ class JailbreakDetector: ObservableObject {
         }
 
         // jb 目录
-        var jbPrebootPath = "/private/preboot/\(hashPart)/jb"
+        let jbPrebootPath = "/private/preboot/\(hashPart)/jb"
         if let linkTarget = readlinkStr(jbPrebootPath) {
             return (true, "preboot jb 链接 → \(linkTarget)")
         }
@@ -402,60 +394,6 @@ class JailbreakDetector: ObservableObject {
             }
         }
         return mnt != "/"
-    }
-
-    // MARK: - 挂载异常
-    private func checkMountAnomalies() -> (Bool, String) {
-        var count = getmntinfo(nil, 0)
-        guard count > 0 else { return (false, "无法获取挂载信息") }
-
-        var buf = [statfs](repeating: statfs(), count: Int(count))
-        count = getmntinfo(&buf, 0)
-        guard count > 0 else { return (false, "无法获取挂载信息") }
-
-        let mounts = Array(buf.prefix(Int(count)))
-        var anomalies: [String] = []
-
-        // 检查非标准 apfs 快照挂载
-        for (i, m) in mounts.enumerated() {
-            let mntFrom = withUnsafePointer(to: m.f_mntfromname) { ptr in
-                ptr.withMemoryRebound(to: CChar.self, capacity: Int(MFSNAMELEN)) {
-                    String(cString: $0)
-                }
-            }
-            let mntOn = withUnsafePointer(to: m.f_mntonname) { ptr in
-                ptr.withMemoryRebound(to: CChar.self, capacity: Int(MFSNAMELEN)) {
-                    String(cString: $0)
-                }
-            }
-            let fstype = withUnsafePointer(to: m.f_fstypename) { ptr in
-                ptr.withMemoryRebound(to: CChar.self, capacity: Int(MFSNAMELEN)) {
-                    String(cString: $0)
-                }
-            }
-
-            // 非标准快照挂载
-            if mntOn != "/" && fstype == "apfs" && mntFrom.contains("@") {
-                anomalies.append("非标准快照: \(mntFrom) → \(mntOn)")
-            }
-
-            // 重复挂载
-            for j in 0..<i {
-                let prevFrom = withUnsafePointer(to: mounts[j].f_mntfromname) { ptr in
-                    ptr.withMemoryRebound(to: CChar.self, capacity: Int(MFSNAMELEN)) {
-                        String(cString: $0)
-                    }
-                }
-                if mntFrom == prevFrom {
-                    anomalies.append("重复挂载: \(mntFrom)")
-                }
-            }
-        }
-
-        if anomalies.isEmpty {
-            return (false, "挂载正常")
-        }
-        return (true, anomalies.joined(separator: "; "))
     }
 
     // MARK: - fork() (bypass Xcode 16)
